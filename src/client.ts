@@ -219,7 +219,7 @@ export interface NoteItem {
   tags: TagInfo[];
   parent_id?: number;
   children_count?: number;
-  topics?: { id: number | string; name: string }[];
+  topics?: { id: string; name: string }[];
   is_child_note?: boolean;
   created_at: string;
   updated_at: string;
@@ -264,7 +264,7 @@ export interface SaveNoteReq {
   id?: number | string;
   title?: string;
   content?: string;
-  note_type?: "plain_text" | "img_text" | "link";
+  note_type?: "plain_text" | "link";
   tags?: string[];
   parent_id?: number | string;
   link_url?: string;

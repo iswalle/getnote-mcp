@@ -76,7 +76,7 @@ const TOOLS: Tool[] = [
   {
     name: "save_note",
     description:
-      "创建或编辑笔记。id 为空时创建新笔记，有 id 时编辑已有笔记。支持 plain_text、img_text、link 三种类型。",
+      "创建或编辑笔记。id 为空时创建新笔记，有 id 时编辑已有笔记。⚠️ 目前只支持纯文本笔记（plain_text）和链接笔记（link）；图片、语音等其他类型笔记只能在 App/Web 端创建，MCP 可以读取但不能创建。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -94,8 +94,8 @@ const TOOLS: Tool[] = [
         },
         note_type: {
           type: "string",
-          enum: ["plain_text", "img_text", "link"],
-          description: "笔记类型，默认 plain_text",
+          enum: ["plain_text", "link"],
+          description: "笔记类型，默认 plain_text。目前仅支持 plain_text（纯文本）和 link（链接笔记）",
           default: "plain_text",
         },
         tags: {

@@ -10,7 +10,7 @@ Exposes the following tools to AI models:
 |------|-------------|
 | `list_notes` | 获取笔记列表（游标分页） |
 | `get_note` | 获取笔记详情 |
-| `save_note` | 创建或编辑笔记（纯文本/图片/链接） |
+| `save_note` | 创建或编辑笔记（纯文本/链接，见下方类型限制） |
 | `delete_note` | 删除笔记（移入回收站） |
 | `add_note_tags` | 添加笔记标签 |
 | `delete_note_tag` | 删除笔记标签 |
@@ -61,6 +61,17 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   }
 }
 ```
+
+## Notes on Note Types
+
+`save_note` currently supports **two note types** only:
+
+| Type | Description |
+|------|-------------|
+| `plain_text` | 纯文本笔记（默认） |
+| `link` | 链接笔记（需传 `link_url`） |
+
+> **⚠️ 限制说明**：图片笔记、语音笔记等其他类型**只能在 Get笔记 App 或 Web 端创建**，MCP 工具可以通过 `get_note` / `list_notes` 读取这些笔记，但无法通过 MCP 创建。
 
 ## API
 
