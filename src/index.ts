@@ -76,14 +76,10 @@ const TOOLS: Tool[] = [
   {
     name: "save_note",
     description:
-      "创建或编辑笔记。id 为空时创建新笔记，有 id 时编辑已有笔记。⚠️ 目前只支持纯文本笔记（plain_text）和链接笔记（link）；图片、语音等其他类型笔记只能在 App/Web 端创建，MCP 可以读取但不能创建。",
+      "新建笔记（⚠️ 仅支持新建，不支持编辑已有笔记）。⚠️ 目前只支持纯文本笔记（plain_text）和链接笔记（link）；图片、语音等其他类型笔记只能在 App/Web 端创建，MCP 可以读取但不能创建。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        id: {
-          type: ["number", "string"],
-          description: "笔记 ID（编辑时必填，创建时不填）",
-        },
         title: {
           type: "string",
           description: "笔记标题",
@@ -105,7 +101,7 @@ const TOOLS: Tool[] = [
         },
         parent_id: {
           type: ["number", "string"],
-          description: "父笔记 ID（创建子笔记时填）",
+          description: "父笔记 ID（创建子笔记时填，父笔记的 is_child_note 必须为 false）",
         },
         link_url: {
           type: "string",
@@ -341,7 +337,6 @@ async function handleTool(
     }
     case "save_note": {
       const body: SaveNoteReq = {};
-      if (input.id !== undefined) body.id = input.id as number | string;
       if (input.title !== undefined) body.title = input.title as string;
       if (input.content !== undefined) body.content = input.content as string;
       if (input.note_type !== undefined)
