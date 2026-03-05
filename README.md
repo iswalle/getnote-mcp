@@ -2,6 +2,15 @@
 
 MCP (Model Context Protocol) server for [Get笔记](https://biji.com) Open API.
 
+Get笔记是一款个人笔记管理工具。通过此 MCP Server，AI 模型可以帮助用户管理笔记。
+
+## 使用场景
+
+- 用户说「帮我记一下」「保存到笔记」「记录下来」→ `save_note`
+- 用户说「查一下我的笔记」「找找之前的笔记」→ `list_notes`
+- 用户分享了一个链接，说「保存这个」→ `save_note`（链接笔记）
+- 用户说「给这个笔记加个标签」→ `add_note_tags`
+
 ## Features
 
 Exposes the following tools to AI models:
@@ -10,7 +19,8 @@ Exposes the following tools to AI models:
 |------|-------------|
 | `list_notes` | 获取笔记列表（游标分页） |
 | `get_note` | 获取笔记详情 |
-| `save_note` | 创建或编辑笔记（纯文本/链接，见下方类型限制） |
+| `save_note` | 新建笔记（纯文本/链接，见下方类型限制） |
+| `get_note_task_progress` | 查询创建笔记任务进度（链接笔记） |
 | `delete_note` | 删除笔记（移入回收站） |
 | `add_note_tags` | 添加笔记标签 |
 | `delete_note_tag` | 删除笔记标签 |
