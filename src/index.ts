@@ -76,7 +76,7 @@ const TOOLS: Tool[] = [
   {
     name: "save_note",
     description:
-      "新建笔记（⚠️ 仅支持新建，不支持编辑已有笔记）。⚠️ 目前只支持纯文本笔记（plain_text）和链接笔记（link）；图片、语音等其他类型笔记只能在 App/Web 端创建，MCP 可以读取但不能创建。",
+      "新建笔记（⚠️ 仅支持新建，不支持编辑已有笔记）。⚠️ 目前只支持纯文本笔记（plain_text）和链接笔记（link）；图片、语音等其他类型笔记只能在 App/Web 端创建，MCP 可以读取但不能创建。\n\n**返回值说明**：\n- 纯文本笔记：返回 `id`、`title`、`created_at`、`updated_at`。\n- 链接笔记（link）：额外返回 `tasks` 数组（每项含 `task_id` 和 `url`）、`created_count`、`duplicate_count`、`invalid_count`。链接笔记由 AI 异步处理，可用 `get_note_task_progress` 工具传入 `task_id` 查询处理进度。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -114,6 +114,21 @@ const TOOLS: Tool[] = [
         },
       },
       required: [],
+    },
+  },
+  {
+    name: "get_note_task_progress",
+    description:
+      "查询创建笔记任务的处理进度。用于链接笔记（note_type=link）创建后，通过 save_note 返回的 task_id 轮询任务状态，直到 status 变为 success（可获取 note_id）或 failed（可获取 error_msg）。建议每 10~30 秒轮询一次，约 3 分钟内完成。需要 note.content.read scope。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        task_id: {
+          type: "string",
+          description: "任务 ID（创建链接笔记时 save_note 返回的 tasks[].task_id）",
+        },
+      },
+      required: ["task_id"],
     },
   },
   {
@@ -351,6 +366,9 @@ async function handleTool(
     }
     case "delete_note": {
       return client.deleteNote(input.note_id as number | string);
+    }
+    case "get_note_task_progress": {
+      return client.getNoteTaskProgress(input.task_id as string);
     }
 
     // ── Tags ──

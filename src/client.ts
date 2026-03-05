@@ -113,6 +113,15 @@ export class GetNoteClient {
     });
   }
 
+  async getNoteTaskProgress(task_id: string) {
+    return this.request<NoteTaskProgress>(
+      "POST",
+      "/resource/note/task/progress",
+      undefined,
+      { task_id }
+    );
+  }
+
   // ─── Tags ────────────────────────────────────────────────────────────────
 
   async addNoteTags(note_id: number | string, tags: string[]) {
@@ -271,12 +280,46 @@ export interface SaveNoteReq {
   image_urls?: string[];
 }
 
+export interface NoteTaskItem {
+  /** 任务 ID */
+  task_id: string;
+  /** 链接 URL */
+  url: string;
+}
+
 export interface SaveNoteResp {
   id: number;
   title: string;
   created_at: string;
   updated_at: string;
   message?: string;
+  /** 链接笔记创建时返回的任务列表 */
+  tasks?: NoteTaskItem[];
+  /** 成功创建的笔记数量 */
+  created_count?: number;
+  /** 重复的链接数量（已存在） */
+  duplicate_count?: number;
+  /** 无效的链接数量 */
+  invalid_count?: number;
+}
+
+export interface NoteTaskProgress {
+  /** 任务 ID */
+  task_id: string;
+  /** 任务类型，目前为 "link" */
+  task_type: string;
+  /** 任务状态：pending / processing / success / failed */
+  status: "pending" | "processing" | "success" | "failed";
+  /** 笔记 ID（status 为 success 时返回） */
+  note_id?: number;
+  /** 错误信息（status 为 failed 时返回） */
+  error_msg?: string;
+  /** 任务创建时间 */
+  create_time: string;
+  /** 任务最后更新时间 */
+  update_time: string;
+  /** 任务完成时间 */
+  finish_time?: string;
 }
 
 export interface DeleteNoteResp {
