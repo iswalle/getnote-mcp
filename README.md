@@ -42,10 +42,22 @@ npm run build
 
 ## Usage
 
+### ⚠️ API Key 配置（重要）
+
+为确保每次启动都能正常使用，请将 API Key 保存到持久化配置中：
+
+1. **环境变量**（推荐）：添加到 shell 配置文件（如 `~/.zshrc`）
+2. **MCP 配置文件**：添加到 Claude Desktop 或其他 MCP 客户端的配置
+3. **项目 .env 文件**：在项目目录创建 `.env` 文件
+
 ### Environment variable
 
 ```bash
+# 临时使用
 GETNOTE_API_KEY=your_api_key node dist/index.js
+
+# 持久化（添加到 ~/.zshrc 或 ~/.bashrc）
+export GETNOTE_API_KEY=gk_live_xxx
 ```
 
 ### CLI flag
