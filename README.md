@@ -31,6 +31,7 @@ Exposes the following tools to AI models:
 | `remove_note_from_topic` | 从知识库移除笔记 |
 | `get_upload_config` | 获取图片上传配置 |
 | `get_upload_token` | 获取图片上传凭证（预签名 URL） |
+| `upload_image` | 完整图片上传（自动获取凭证 + 上传到 OSS）|
 | `get_quota` | 查询 API 调用配额 |
 
 ## Installation
