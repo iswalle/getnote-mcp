@@ -318,8 +318,6 @@ export interface NoteTaskProgress {
   create_time: string;
   /** 任务最后更新时间 */
   update_time: string;
-  /** 任务完成时间 */
-  finish_time?: string;
 }
 
 export interface DeleteNoteResp {
