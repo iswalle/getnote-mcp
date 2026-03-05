@@ -62,6 +62,15 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
+## Limits
+
+| Item | Limit |
+|------|-------|
+| 每日知识库创建上限 | 每个账号每天最多创建 **50 个知识库** |
+| 重置时间 | 按 **Europe/Berlin 时区**自然日 00:00 重置 |
+
+> ⚠️ 超出限制时，`create_topic` 接口将返回 429 错误（`reason: quota_day`）。
+
 ## Notes on Note Types
 
 `save_note` currently supports **two note types** only:
