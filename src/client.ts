@@ -92,9 +92,8 @@ export class GetNoteClient {
 
   // ─── Notes ───────────────────────────────────────────────────────────────
 
-  async listNotes(params: { limit?: number; since_id: number | string }) {
+  async listNotes(params: { since_id: number | string }) {
     return this.request<ListNotesResp>("GET", "/resource/note/list", {
-      limit: params.limit,
       since_id: params.since_id,
     });
   }

@@ -42,14 +42,10 @@ const TOOLS: Tool[] = [
   {
     name: "list_notes",
     description:
-      "获取笔记列表（分页）。首次请求 since_id 传 0，后续用上一页最后一条笔记的 ID。",
+      "获取笔记列表（每次固定返回 20 条）。首次请求 since_id 传 0，后续用上一页最后一条笔记的 ID。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        limit: {
-          type: "number",
-          description: "每页数量（默认 20，最大 100）",
-        },
         since_id: {
           type: ["number", "string"],
           description: "游标，返回 ID 小于此值的笔记。首次传 0",
@@ -363,8 +359,7 @@ async function handleTool(
     // ── Notes ──
     case "list_notes": {
       const since_id = (input.since_id as number | string | undefined) ?? 0;
-      const limit = input.limit as number | undefined;
-      return client.listNotes({ since_id, limit });
+      return client.listNotes({ since_id });
     }
     case "get_note": {
       return client.getNote(input.id as number | string);
