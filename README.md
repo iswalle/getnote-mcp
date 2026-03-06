@@ -57,16 +57,17 @@ npm run build
 
 ```bash
 # 临时使用
-GETNOTE_API_KEY=your_api_key node dist/index.js
+GETNOTE_API_KEY=your_api_key GETNOTE_CLIENT_ID=your_client_id node dist/index.js
 
 # 持久化（添加到 ~/.zshrc 或 ~/.bashrc）
 export GETNOTE_API_KEY=gk_live_xxx
+export GETNOTE_CLIENT_ID=cli_xxx
 ```
 
 ### CLI flag
 
 ```bash
-node dist/index.js --api-key your_api_key
+node dist/index.js --api-key your_api_key --client-id your_client_id
 ```
 
 ## Claude Desktop Configuration
@@ -80,7 +81,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
       "command": "node",
       "args": ["/path/to/getnote-mcp/dist/index.js"],
       "env": {
-        "GETNOTE_API_KEY": "your_api_key_here"
+        "GETNOTE_API_KEY": "your_api_key_here",
+        "GETNOTE_CLIENT_ID": "your_client_id_here"
       }
     }
   }
