@@ -105,6 +105,61 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 > **⚠️ 限制说明**：图片笔记、语音笔记等其他类型**只能在 Get笔记 App 或 Web 端创建**，MCP 工具可以通过 `get_note` / `list_notes` 读取这些笔记，但无法通过 MCP 创建。
 
+## 图片上传流程
+
+通过 MCP 上传图片创建笔记需要三步：
+
+### 1. 获取上传凭证
+
+```
+Tool: get_upload_token
+Input: { "mime_type": "png" }
+```
+
+返回 OSS 上传凭证：
+```json
+{
+  "accessid": "LTAI5t...",
+  "host": "https://ali-bj2-oss-get-notes-prod.oss-accelerate.aliyuncs.com",
+  "policy": "eyJleHBpcmF...",
+  "signature": "nhyBord...",
+  "callback": "eyJjYWxs...",
+  "object_key": "get_notes_prod/...",
+  "oss_content_type": "image/png"
+}
+```
+
+### 2. 上传到 OSS
+
+使用凭证通过 multipart/form-data POST 上传：
+
+```bash
+curl -X POST "${host}" \
+  -F "OSSAccessKeyId=${accessid}" \
+  -F "policy=${policy}" \
+  -F "Signature=${signature}" \
+  -F "key=${object_key}" \
+  -F "callback=${callback}" \
+  -F "success_action_status=201" \
+  -F "file=@/path/to/image.png;type=${oss_content_type}"
+```
+
+OSS 回调返回图片 ID：
+```json
+{"h":{"c":0},"c":{"image":{"id":"1903496039204269936"}}}
+```
+
+### 3. 创建图片笔记
+
+```
+Tool: save_note
+Input: {
+  "title": "图片笔记",
+  "note_type": "img_text",
+  "image_ids": ["1903496039204269936"]
+}
+```
+
 ## API
 
 - **Base URL**: `https://open.getnotes.cn/api/v1`

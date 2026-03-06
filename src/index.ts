@@ -300,18 +300,13 @@ const TOOLS: Tool[] = [
   {
     name: "get_upload_token",
     description:
-      "获取 OSS 图片上传凭证（预签名 URL）。凭此 URL 用 PUT 方法直接上传图片，上传后用 get_url 创建图片笔记。",
+      "获取 OSS 图片上传凭证。返回 accessid/host/policy/signature 等字段，用于 multipart/form-data POST 上传图片到阿里云 OSS。上传成功后获取 image_id，再用 save_note 创建图片笔记。",
     inputSchema: {
       type: "object" as const,
       properties: {
-        count: {
-          type: "number",
-          description: "需要的 token 数量（默认 1，最大 10）",
-          default: 1,
-        },
         mime_type: {
           type: "string",
-          description: "图片 MIME 类型或扩展名（如 image/jpeg 或 jpg），不填则返回所有支持类型的通用 token",
+          description: "图片类型（如 png、jpg、jpeg、gif、webp），默认 png",
         },
       },
       required: [],
@@ -448,7 +443,6 @@ async function handleTool(
     }
     case "get_upload_token": {
       return client.getUploadToken({
-        count: input.count as number | undefined,
         mime_type: input.mime_type as string | undefined,
       });
     }

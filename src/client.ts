@@ -386,16 +386,21 @@ export interface GetUploadConfigResp {
   max_count: number;
 }
 
+// OSS 上传凭证（与 Web 端格式一致）
 export interface ImageUploadToken {
-  sign_url: string;
-  get_url: string;
+  accessid: string;
+  host: string;
+  policy: string;
+  signature: string;
+  expire: number;
+  callback: string;
   object_key: string;
-  mime_type: string;
+  access_url: string;
+  oss_content_type: string;
 }
 
-export interface GetUploadTokenResp {
-  tokens: ImageUploadToken[];
-}
+// 直接返回单个 token
+export type GetUploadTokenResp = ImageUploadToken;
 
 export interface KnowledgeTopic {
   id: string;
