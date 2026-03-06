@@ -43,9 +43,11 @@ npm run build
 
 ## Usage
 
-### ⚠️ API Key 配置（重要）
+### ⚠️ API Key 和 Client ID 配置（重要）
 
-为确保每次启动都能正常使用，请将 API Key 保存到持久化配置中：
+获取 API Key 和 Client ID：**https://www.biji.com/openapi**
+
+为确保每次启动都能正常使用，请将 API Key 和 Client ID 保存到持久化配置中：
 
 1. **环境变量**（推荐）：添加到 shell 配置文件（如 `~/.zshrc`）
 2. **MCP 配置文件**：添加到 Claude Desktop 或其他 MCP 客户端的配置
@@ -166,7 +168,7 @@ Input: {
 - **Base URL**: `https://open.getnotes.cn/api/v1`
 - **Auth**: Bearer Token (API Key)
 
-Get your API Key at [Get笔记开放平台](https://biji.com/developer).
+Get your API Key and Client ID at [Get笔记开放平台](https://www.biji.com/openapi).
 
 ## License
 
