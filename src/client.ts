@@ -162,47 +162,65 @@ export class GetNoteClient {
   /**
    * 上传图片到 OSS（使用预签名 URL）
    * @param signUrl 预签名上传 URL（从 getUploadToken 获取的 sign_url）
+   * @param token 上传凭证
    * @param imageData 图片数据（Buffer 或 Uint8Array）
-   * @param mimeType MIME 类型，默认 image/jpeg
+   * @returns OSS 回调响应（包含 image_id）
    */
   async uploadImageToOSS(
-    signUrl: string,
-    imageData: Buffer | Uint8Array,
-    mimeType: string = "image/jpeg"
-  ): Promise<boolean> {
-    const response = await fetch(signUrl, {
-      method: "PUT",
-      headers: { "Content-Type": mimeType },
-      body: imageData,
+    token: ImageUploadToken,
+    imageData: Buffer | Uint8Array
+  ): Promise<{ image_id: string }> {
+    // 使用 FormData 构建 multipart 请求
+    const FormData = (await import("form-data")).default;
+    const form = new FormData();
+    
+    form.append("OSSAccessKeyId", token.accessid);
+    form.append("policy", token.policy);
+    form.append("Signature", token.signature);
+    form.append("key", token.object_key);
+    form.append("callback", token.callback);
+    form.append("success_action_status", "201");
+    form.append("file", imageData, {
+      filename: "image",
+      contentType: token.oss_content_type,
     });
-    return response.ok;
+
+    const response = await fetch(token.host, {
+      method: "POST",
+      body: form as unknown as BodyInit,
+      headers: form.getHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`OSS upload failed: ${response.status}`);
+    }
+
+    // 解析回调响应: {"h":{"c":0},"c":{"image":{"id":"xxx"}}}
+    const result = await response.json() as { h: { c: number }; c: { image: { id: string } } };
+    if (result.h?.c !== 0) {
+      throw new Error("OSS callback failed");
+    }
+    return { image_id: result.c.image.id };
   }
 
   /**
    * 完整的图片上传流程：获取 token + 上传到 OSS
    * @param imageData 图片数据
-   * @param mimeType MIME 类型
-   * @returns 上传后的访问 URL（get_url）
+   * @param mimeType MIME 类型（如 png, jpg）
+   * @returns 上传结果（包含 image_id 和 access_url）
    */
   async uploadImage(
     imageData: Buffer | Uint8Array,
-    mimeType: string = "image/jpeg"
-  ): Promise<string> {
-    // 1. 获取上传凭证
-    const tokenResp = await this.getUploadToken({ count: 1, mime_type: mimeType });
-    if (!tokenResp.tokens || tokenResp.tokens.length === 0) {
-      throw new Error("Failed to get upload token");
-    }
-    const token = tokenResp.tokens[0];
+    mimeType: string = "png"
+  ): Promise<{ image_id: string; access_url: string }> {
+    // 1. 获取上传凭证（现在直接返回单个对象）
+    const token = await this.getUploadToken({ mime_type: mimeType });
 
     // 2. 上传到 OSS
-    const success = await this.uploadImageToOSS(token.sign_url, imageData, mimeType);
-    if (!success) {
-      throw new Error("Failed to upload image to OSS");
-    }
+    const { image_id } = await this.uploadImageToOSS(token, imageData);
 
-    // 3. 返回访问 URL
-    return token.get_url;
+    // 3. 返回结果
+    return { image_id, access_url: token.access_url };
   }
 
   // ─── Knowledge / Topics ─────────────────────────────────────────────────

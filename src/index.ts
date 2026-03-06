@@ -315,7 +315,7 @@ const TOOLS: Tool[] = [
   {
     name: "upload_image",
     description:
-      "完整的图片上传流程：自动获取凭证 + 上传到 OSS，返回图片访问 URL。⚠️ 注意：图片笔记（img_text）暂不支持通过 API 创建，上传后的图片 URL 可用于其他场景。",
+      "上传图片到 OSS。返回 image_id 和 access_url。创建图片笔记时需要用返回的 image_id。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -329,8 +329,8 @@ const TOOLS: Tool[] = [
         },
         mime_type: {
           type: "string",
-          description: "图片 MIME 类型（默认 image/jpeg）",
-          default: "image/jpeg",
+          description: "图片类型（如 png、jpg、jpeg），默认 png",
+          default: "png",
         },
       },
       required: [],
@@ -460,9 +460,10 @@ async function handleTool(
         throw new Error("Either image_path or image_base64 is required");
       }
 
-      const mimeType = (input.mime_type as string) || "image/jpeg";
-      const imageUrl = await client.uploadImage(imageData, mimeType);
-      return { success: true, image_url: imageUrl };
+      // mime_type 传扩展名格式（如 png、jpg）
+      const mimeType = (input.mime_type as string) || "png";
+      const result = await client.uploadImage(imageData, mimeType);
+      return { success: true, image_id: result.image_id, access_url: result.access_url };
     }
 
     // ── Quota ──
