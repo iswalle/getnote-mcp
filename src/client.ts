@@ -179,7 +179,7 @@ export class GetNoteClient {
     form.append("Signature", token.signature);
     form.append("key", token.object_key);
     form.append("callback", token.callback);
-    form.append("success_action_status", "201");
+    form.append("success_action_status", "200");
     form.append("file", imageData, {
       filename: "image",
       contentType: token.oss_content_type,
