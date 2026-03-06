@@ -76,7 +76,7 @@ const TOOLS: Tool[] = [
   {
     name: "save_note",
     description:
-      "新建笔记（⚠️ 仅支持新建，不支持编辑已有笔记）。⚠️ 目前只支持纯文本笔记（plain_text）和链接笔记（link）；图片、语音等其他类型笔记只能在 App/Web 端创建，MCP 可以读取但不能创建。\n\n**返回值说明**：\n- 纯文本笔记：返回 `id`、`title`、`created_at`、`updated_at`。\n- 链接笔记（link）：额外返回 `tasks` 数组（每项含 `task_id` 和 `url`）、`created_count`、`duplicate_count`、`invalid_count`。链接笔记由 AI 异步处理，可用 `get_note_task_progress` 工具传入 `task_id` 查询处理进度。",
+      "新建笔记（⚠️ 仅支持新建，不支持编辑已有笔记）。支持纯文本笔记（plain_text）、链接笔记（link）和图片笔记（img_text）。\n\n**图片笔记创建流程**：先用 get_upload_token 获取凭证，上传图片到 OSS 获取 image_id，再调用 save_note 传入 image_ids。\n\n**返回值说明**：\n- 纯文本/图片笔记：返回 `id`、`title`、`created_at`、`updated_at`。\n- 链接笔记（link）：额外返回 `tasks` 数组（每项含 `task_id` 和 `url`）。链接笔记由 AI 异步处理，可用 `get_note_task_progress` 工具传入 `task_id` 查询处理进度。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -90,8 +90,8 @@ const TOOLS: Tool[] = [
         },
         note_type: {
           type: "string",
-          enum: ["plain_text", "link"],
-          description: "笔记类型，默认 plain_text。目前仅支持 plain_text（纯文本）和 link（链接笔记）",
+          enum: ["plain_text", "link", "img_text"],
+          description: "笔记类型：plain_text（纯文本，默认）、link（链接笔记）、img_text（图片笔记）",
           default: "plain_text",
         },
         tags: {
@@ -107,10 +107,15 @@ const TOOLS: Tool[] = [
           type: "string",
           description: "链接 URL（note_type=link 时必填）",
         },
+        image_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "图片 ID 列表（note_type=img_text 时必填，通过上传图片到 OSS 获取）",
+        },
         image_urls: {
           type: "array",
           items: { type: "string" },
-          description: "图片 URL 列表（note_type=img_text 时必填）",
+          description: "图片 URL 列表（note_type=img_text 时可用，外部图片 URL）",
         },
       },
       required: [],

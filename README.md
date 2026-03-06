@@ -96,14 +96,15 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ## Notes on Note Types
 
-`save_note` currently supports **two note types** only:
+`save_note` supports **three note types**:
 
 | Type | Description |
 |------|-------------|
 | `plain_text` | 纯文本笔记（默认） |
 | `link` | 链接笔记（需传 `link_url`） |
+| `img_text` | 图片笔记（需传 `image_ids`，通过上传图片到 OSS 获取） |
 
-> **⚠️ 限制说明**：图片笔记、语音笔记等其他类型**只能在 Get笔记 App 或 Web 端创建**，MCP 工具可以通过 `get_note` / `list_notes` 读取这些笔记，但无法通过 MCP 创建。
+> **语音笔记等其他类型**只能在 Get笔记 App 或 Web 端创建，MCP 可以读取但无法创建。
 
 ## 图片上传流程
 

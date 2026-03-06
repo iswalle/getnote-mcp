@@ -319,11 +319,12 @@ export interface SaveNoteReq {
   id?: number | string;
   title?: string;
   content?: string;
-  note_type?: "plain_text" | "link";
+  note_type?: "plain_text" | "link" | "img_text";
   tags?: string[];
   parent_id?: number | string;
   link_url?: string;
   image_urls?: string[];
+  image_ids?: string[];
 }
 
 export interface NoteTaskItem {
