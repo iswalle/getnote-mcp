@@ -3,8 +3,8 @@
  * getnote-mcp — MCP server for Get笔记 (GetNotes) Open API
  *
  * Usage:
- *   GETNOTE_API_KEY=your_key node dist/index.js
- *   or pass --api-key flag
+ *   GETNOTE_API_KEY=your_key GETNOTE_CLIENT_ID=your_client_id node dist/index.js
+ *   or pass --api-key and --client-id flags
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -31,6 +31,22 @@ function getApiKey(): string {
 
   console.error(
     "Error: API key required. Set GETNOTE_API_KEY env var or pass --api-key <key>"
+  );
+  process.exit(1);
+}
+
+function getClientId(): string {
+  // 1. --client-id flag
+  const flagIdx = process.argv.indexOf("--client-id");
+  if (flagIdx !== -1 && process.argv[flagIdx + 1]) {
+    return process.argv[flagIdx + 1];
+  }
+  // 2. environment variable
+  const envKey = process.env.GETNOTE_CLIENT_ID;
+  if (envKey) return envKey;
+
+  console.error(
+    "Error: Client ID required. Set GETNOTE_CLIENT_ID env var or pass --client-id <id>"
   );
   process.exit(1);
 }
@@ -479,7 +495,8 @@ async function handleTool(
 
 async function main() {
   const apiKey = getApiKey();
-  const client = new GetNoteClient(apiKey);
+  const clientId = getClientId();
+  const client = new GetNoteClient(apiKey, clientId);
 
   const server = new Server(
     {

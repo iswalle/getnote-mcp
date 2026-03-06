@@ -17,11 +17,12 @@ export class GetNoteAPIError extends Error {
 export class GetNoteClient {
   private http: AxiosInstance;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, clientId: string) {
     this.http = axios.create({
       baseURL: BASE_URL,
       headers: {
         Authorization: `Bearer ${apiKey}`,
+        "X-Client-ID": clientId,
         "Content-Type": "application/json",
       },
       timeout: 30000,
