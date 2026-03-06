@@ -102,7 +102,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 |------|-------------|
 | `plain_text` | 纯文本笔记（默认） |
 | `link` | 链接笔记（需传 `link_url`） |
-| `img_text` | 图片笔记（需传 `image_ids`，通过上传图片到 OSS 获取） |
+| `img_text` | 图片笔记（需传 `image_urls`，通过上传图片到 OSS 获取） |
 
 > **语音笔记等其他类型**只能在 Get笔记 App 或 Web 端创建，MCP 可以读取但无法创建。
 
@@ -157,7 +157,7 @@ Tool: save_note
 Input: {
   "title": "图片笔记",
   "note_type": "img_text",
-  "image_ids": ["1903496039204269936"]
+  "image_urls": ["1903496039204269936"]
 }
 ```
 

@@ -324,7 +324,6 @@ export interface SaveNoteReq {
   parent_id?: number | string;
   link_url?: string;
   image_urls?: string[];
-  image_ids?: string[];
 }
 
 export interface NoteTaskItem {
