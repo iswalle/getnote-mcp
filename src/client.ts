@@ -159,52 +159,6 @@ export class GetNoteClient {
     );
   }
 
-  /**
-   * 上传图片到 OSS（使用预签名 URL）
-   * @param signUrl 预签名上传 URL（从 getUploadToken 获取的 sign_url）
-   * @param imageData 图片数据（Buffer 或 Uint8Array）
-   * @param mimeType MIME 类型，默认 image/jpeg
-   */
-  async uploadImageToOSS(
-    signUrl: string,
-    imageData: Buffer | Uint8Array,
-    mimeType: string = "image/jpeg"
-  ): Promise<boolean> {
-    const response = await fetch(signUrl, {
-      method: "PUT",
-      headers: { "Content-Type": mimeType },
-      body: imageData,
-    });
-    return response.ok;
-  }
-
-  /**
-   * 完整的图片上传流程：获取 token + 上传到 OSS
-   * @param imageData 图片数据
-   * @param mimeType MIME 类型
-   * @returns 上传后的访问 URL（get_url）
-   */
-  async uploadImage(
-    imageData: Buffer | Uint8Array,
-    mimeType: string = "image/jpeg"
-  ): Promise<string> {
-    // 1. 获取上传凭证
-    const tokenResp = await this.getUploadToken({ count: 1, mime_type: mimeType });
-    if (!tokenResp.tokens || tokenResp.tokens.length === 0) {
-      throw new Error("Failed to get upload token");
-    }
-    const token = tokenResp.tokens[0];
-
-    // 2. 上传到 OSS
-    const success = await this.uploadImageToOSS(token.sign_url, imageData, mimeType);
-    if (!success) {
-      throw new Error("Failed to upload image to OSS");
-    }
-
-    // 3. 返回访问 URL
-    return token.get_url;
-  }
-
   // ─── Knowledge / Topics ─────────────────────────────────────────────────
 
   async listTopics(params?: { page?: number; size?: number }) {
