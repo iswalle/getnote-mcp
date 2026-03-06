@@ -208,7 +208,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "create_topic",
-    description: "创建新的知识库。⚠️ 限制：每天最多创建 50 个知识库，按 Europe/Berlin 时区自然日 00:00 重置。",
+    description: "创建新的知识库。⚠️ 限制：每天最多创建 50 个知识库，北京时间自然日 00:00 重置。",
     inputSchema: {
       type: "object" as const,
       properties: {
