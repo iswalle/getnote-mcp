@@ -90,9 +90,9 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | Item | Limit |
 |------|-------|
 | 每日知识库创建上限 | 每个账号每天最多创建 **50 个知识库** |
-| 重置时间 | 按 **Europe/Berlin 时区**自然日 00:00 重置 |
+| 重置时间 | 按 **北京时间**自然日 00:00 重置 |
 
-> ⚠️ 超出限制时，`create_topic` 接口将返回 429 错误（`reason: quota_day`）。
+> ⚠️ 超出限制时，`create_topic` 接口将返回 429 错误（`reason: quota_daily_exceeded`）。
 
 ## Notes on Note Types
 
@@ -126,6 +126,7 @@ Input: { "mime_type": "png" }
   "signature": "nhyBord...",
   "callback": "eyJjYWxs...",
   "object_key": "get_notes_prod/...",
+  "access_url": "https://ali-bj2-oss-get-notes-prod.oss-accelerate.aliyuncs.com/...",
   "oss_content_type": "image/png"
 }
 ```
@@ -141,25 +142,24 @@ curl -X POST "${host}" \
   -F "Signature=${signature}" \
   -F "key=${object_key}" \
   -F "callback=${callback}" \
-  -F "success_action_status=201" \
+  -F "success_action_status=200" \
   -F "file=@/path/to/image.png;type=${oss_content_type}"
 ```
 
-OSS 回调返回图片 ID：
-```json
-{"h":{"c":0},"c":{"image":{"id":"1903496039204269936"}}}
-```
-
 ### 3. 创建图片笔记
+
+使用凭证中的 `access_url` 创建笔记：
 
 ```
 Tool: save_note
 Input: {
   "title": "图片笔记",
   "note_type": "img_text",
-  "image_urls": ["1903496039204269936"]
+  "image_urls": ["${access_url}"]
 }
 ```
+
+> **简化流程**：也可以直接使用 `upload_image` 工具，它会自动完成步骤 1 和 2，返回 `image_url`。
 
 ## API
 
