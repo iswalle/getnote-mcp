@@ -76,7 +76,7 @@ const TOOLS: Tool[] = [
   {
     name: "save_note",
     description:
-      "新建笔记（⚠️ 仅支持新建，不支持编辑已有笔记）。支持纯文本笔记（plain_text）、链接笔记（link）和图片笔记（img_text）。\n\n**图片笔记**：直接传入图片 URL 列表（image_urls）。\n\n**返回值说明**：\n- 纯文本/图片笔记：返回 `id`、`title`、`created_at`、`updated_at`。\n- 链接笔记（link）：额外返回 `tasks` 数组（每项含 `task_id` 和 `url`）。链接笔记由 AI 异步处理，可用 `get_note_task_progress` 工具传入 `task_id` 查询处理进度。",
+      "新建笔记（⚠️ 仅支持新建，不支持编辑已有笔记）。支持纯文本笔记（plain_text）、链接笔记（link）和图片笔记（img_text）。\n\n**图片笔记流程**：先用 upload_image 上传图片获取 image_url，再调用此接口传入 image_urls。\n\n**返回值说明**：\n- 纯文本/图片笔记：返回 `id`、`title`、`created_at`、`updated_at`。\n- 链接笔记（link）：额外返回 `tasks` 数组（每项含 `task_id` 和 `url`）。链接笔记由 AI 异步处理，可用 `get_note_task_progress` 工具传入 `task_id` 查询处理进度。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -315,7 +315,7 @@ const TOOLS: Tool[] = [
   {
     name: "upload_image",
     description:
-      "上传图片到 OSS。返回 image_id 和 access_url。创建图片笔记时需要用返回的 image_id。",
+      "上传图片到 OSS。返回 image_url（用于创建图片笔记的 image_urls 参数）。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -463,7 +463,11 @@ async function handleTool(
       // mime_type 传扩展名格式（如 png、jpg）
       const mimeType = (input.mime_type as string) || "png";
       const result = await client.uploadImage(imageData, mimeType);
-      return { success: true, image_id: result.image_id, access_url: result.access_url };
+      return { 
+        success: true, 
+        image_url: result.access_url,  // 用于创建图片笔记
+        image_id: result.image_id      // OSS 回调返回的 ID
+      };
     }
 
     // ── Quota ──
