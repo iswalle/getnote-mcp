@@ -310,12 +310,14 @@ export interface NoteDetail extends NoteItem {
   audio?: {
     play_url?: string;
     duration?: number;
-    transcript?: string;
+    /** 录音转写原文（未经 AI 润色的原始转写文本） */
+    original?: string;
   };
   web_page?: {
     url: string;
     domain?: string;
     excerpt?: string;
+    /** 链接原文（网页正文内容） */
     content?: string;
   };
   share_id?: string;
