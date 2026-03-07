@@ -169,7 +169,7 @@ Input: {
 
 ## API
 
-- **Base URL**: `https://open.getnotes.cn/api/v1`
+- **Base URL**: `https://openapi.biji.com/open/api/v1`
 - **Auth**: Bearer Token (API Key)
 
 Get your API Key and Client ID at [Get笔记开放平台](https://www.biji.com/openapi).

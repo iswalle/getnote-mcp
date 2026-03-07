@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 
-const BASE_URL = "https://open.getnotes.cn/api/v1";
+const BASE_URL = "https://openapi.biji.com/open/api/v1";
 
 export class GetNoteAPIError extends Error {
   constructor(
