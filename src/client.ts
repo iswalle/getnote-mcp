@@ -267,6 +267,54 @@ export class GetNoteClient {
     );
   }
 
+  // ─── Knowledge / Bloggers ────────────────────────────────────────────────
+
+  async listTopicBloggers(params: { topic_id: string; page?: number }) {
+    return this.request<ListTopicBloggersResp>(
+      "GET",
+      "/resource/knowledge/bloggers",
+      { topic_id: params.topic_id, page: params.page }
+    );
+  }
+
+  async listTopicBloggerContents(params: {
+    topic_id: string;
+    follow_id: number | string;
+    page?: number;
+  }) {
+    return this.request<ListTopicBloggerContentsResp>(
+      "GET",
+      "/resource/knowledge/blogger/contents",
+      { topic_id: params.topic_id, follow_id: params.follow_id, page: params.page }
+    );
+  }
+
+  async getBloggerContentDetail(params: { topic_id: string; post_id: string }) {
+    return this.request<BloggerContentDetail>(
+      "GET",
+      "/resource/knowledge/blogger/content/detail",
+      { topic_id: params.topic_id, post_id: params.post_id }
+    );
+  }
+
+  // ─── Knowledge / Lives ───────────────────────────────────────────────────
+
+  async listTopicLives(params: { topic_id: string; page?: number }) {
+    return this.request<ListTopicLivesResp>(
+      "GET",
+      "/resource/knowledge/lives",
+      { topic_id: params.topic_id, page: params.page }
+    );
+  }
+
+  async getLiveDetail(params: { topic_id: string; live_id: number | string }) {
+    return this.request<LiveDetail>(
+      "GET",
+      "/resource/knowledge/live/detail",
+      { topic_id: params.topic_id, live_id: params.live_id }
+    );
+  }
+
   // ─── Rate Limit / Quota ──────────────────────────────────────────────────
 
   async getQuota() {
@@ -490,4 +538,81 @@ export interface GetQuotaResp {
   read: QuotaBucket;
   write: QuotaBucket;
   write_note: QuotaBucket;
+}
+
+// ─── Blogger Types ───────────────────────────────────────────────────────────
+
+export interface BloggerItem {
+  follow_id: number;
+  account_name: string;
+  account_avatar: string;
+  notes_count: number;
+  platform: string;
+  hook_state: string;
+  follow_time: string;
+  follow_link: string;
+}
+
+export interface ListTopicBloggersResp {
+  bloggers: BloggerItem[];
+  has_more: boolean;
+  total: number;
+}
+
+export interface BloggerContentItem {
+  post_id_alias: string;
+  post_name: string;
+  post_type: string;
+  post_cover: string;
+  post_title: string;
+  post_summary: string;
+  post_url: string;
+  post_icon: string;
+  post_subtitle: string;
+  post_create_time: string;
+  post_publish_time: string;
+}
+
+export interface ListTopicBloggerContentsResp {
+  contents: BloggerContentItem[];
+  has_more: boolean;
+  total: number;
+}
+
+export interface BloggerContentDetail extends BloggerContentItem {
+  post_media_text: string;
+}
+
+// ─── Live Types ──────────────────────────────────────────────────────────────
+
+export interface LiveItem {
+  live_id: number;
+  follow_id: number;
+  name: string;
+  cover: string;
+  sub_title: string;
+  link: string;
+  platform: string;
+  status: string;
+  follow_time: string;
+}
+
+export interface ListTopicLivesResp {
+  lives: LiveItem[];
+  has_more: boolean;
+  total: number;
+}
+
+export interface LiveDetail {
+  post_id_alias: string;
+  post_name: string;
+  post_type: string;
+  post_cover: string;
+  post_subtitle: string;
+  post_url: string;
+  post_title: string;
+  post_summary: string;
+  post_media_text: string;
+  post_create_time: string;
+  post_publish_time: string;
 }

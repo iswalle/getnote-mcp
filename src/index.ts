@@ -349,6 +349,109 @@ const TOOLS: Tool[] = [
     },
   },
 
+  // ── Knowledge / Bloggers ──
+  {
+    name: "list_topic_bloggers",
+    description:
+      "获取知识库订阅的博主列表。需要 topic.blogger.read scope。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        topic_id: {
+          type: "string",
+          description: "知识库 ID（alias id，来自 list_topics 的 id 字段）",
+        },
+        page: {
+          type: "number",
+          description: "页码，从 1 开始，默认 1",
+        },
+      },
+      required: ["topic_id"],
+    },
+  },
+  {
+    name: "list_topic_blogger_contents",
+    description:
+      "获取知识库中某个博主发布的内容列表（摘要，不含原文）。需要 topic.blogger.read scope。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        topic_id: {
+          type: "string",
+          description: "知识库 ID（alias id）",
+        },
+        follow_id: {
+          type: "number",
+          description: "博主订阅 ID（来自 list_topic_bloggers 的 follow_id 字段）",
+        },
+        page: {
+          type: "number",
+          description: "页码，从 1 开始，默认 1",
+        },
+      },
+      required: ["topic_id", "follow_id"],
+    },
+  },
+  {
+    name: "get_blogger_content_detail",
+    description:
+      "获取博主内容详情，包含完整原文（post_media_text）。需要 topic.blogger.read scope。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        topic_id: {
+          type: "string",
+          description: "知识库 ID（alias id）",
+        },
+        post_id: {
+          type: "string",
+          description: "内容 ID（来自 list_topic_blogger_contents 的 post_id_alias 字段）",
+        },
+      },
+      required: ["topic_id", "post_id"],
+    },
+  },
+
+  // ── Knowledge / Lives ──
+  {
+    name: "list_topic_lives",
+    description:
+      "获取知识库中已完成且 AI 已处理的直播列表。需要 topic.live.read scope。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        topic_id: {
+          type: "string",
+          description: "知识库 ID（alias id）",
+        },
+        page: {
+          type: "number",
+          description: "页码，从 1 开始，默认 1",
+        },
+      },
+      required: ["topic_id"],
+    },
+  },
+  {
+    name: "get_live_detail",
+    description:
+      "获取直播详情，包含 AI 摘要（post_summary）和完整原文转写（post_media_text）。需要 topic.live.read scope。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        topic_id: {
+          type: "string",
+          description: "知识库 ID（alias id）",
+        },
+        live_id: {
+          type: "number",
+          description: "直播 ID（来自 list_topic_lives 的 live_id 字段）",
+        },
+      },
+      required: ["topic_id", "live_id"],
+    },
+  },
+
   // ── Quota ──
   {
     name: "get_quota",
@@ -479,6 +582,41 @@ async function handleTool(
         image_url: result.access_url,  // 用于创建图片笔记
         image_id: result.image_id      // OSS 回调返回的 ID
       };
+    }
+
+    // ── Knowledge / Bloggers ──
+    case "list_topic_bloggers": {
+      return client.listTopicBloggers({
+        topic_id: input.topic_id as string,
+        page: input.page as number | undefined,
+      });
+    }
+    case "list_topic_blogger_contents": {
+      return client.listTopicBloggerContents({
+        topic_id: input.topic_id as string,
+        follow_id: input.follow_id as number | string,
+        page: input.page as number | undefined,
+      });
+    }
+    case "get_blogger_content_detail": {
+      return client.getBloggerContentDetail({
+        topic_id: input.topic_id as string,
+        post_id: input.post_id as string,
+      });
+    }
+
+    // ── Knowledge / Lives ──
+    case "list_topic_lives": {
+      return client.listTopicLives({
+        topic_id: input.topic_id as string,
+        page: input.page as number | undefined,
+      });
+    }
+    case "get_live_detail": {
+      return client.getLiveDetail({
+        topic_id: input.topic_id as string,
+        live_id: input.live_id as number | string,
+      });
     }
 
     // ── Quota ──

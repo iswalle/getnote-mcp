@@ -34,6 +34,11 @@ Exposes the following tools to AI models:
 | `get_upload_config` | 获取图片上传配置 |
 | `get_upload_token` | 获取图片上传凭证（预签名 URL） |
 | `upload_image` | 完整图片上传（自动获取凭证 + 上传到 OSS）|
+| `list_topic_bloggers` | 获取知识库订阅的博主列表 |
+| `list_topic_blogger_contents` | 获取博主内容列表（摘要） |
+| `get_blogger_content_detail` | 获取博主内容详情（含原文） |
+| `list_topic_lives` | 获取知识库已完成直播列表 |
+| `get_live_detail` | 获取直播详情（含 AI 摘要和原文转写） |
 | `get_quota` | 查询 API 调用配额 |
 
 ## Installation
