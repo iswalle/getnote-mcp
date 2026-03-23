@@ -113,6 +113,10 @@ export class GetNoteClient {
     });
   }
 
+  async updateNote(body: UpdateNoteReq) {
+    return this.request<UpdateNoteResp>("POST", "/resource/note/update", undefined, body);
+  }
+
   async getNoteTaskProgress(task_id: string) {
     return this.request<NoteTaskProgress>(
       "POST",
@@ -319,6 +323,16 @@ export class GetNoteClient {
 
   async getQuota() {
     return this.request<GetQuotaResp>("GET", "/resource/rate-limit/quota");
+  }
+
+  // ─── Recall / Search ─────────────────────────────────────────────────────
+
+  async recall(body: { query: string; top_k?: number }) {
+    return this.request<RecallResp>("POST", "/resource/recall", undefined, body);
+  }
+
+  async recallKnowledge(body: { topic_id: string; query: string; top_k?: number }) {
+    return this.request<RecallResp>("POST", "/resource/recall/knowledge", undefined, body);
   }
 }
 
@@ -615,4 +629,34 @@ export interface LiveDetail {
   post_media_text: string;
   post_create_time: string;
   post_publish_time: string;
+}
+
+// ─── Update Note Types ───────────────────────────────────────────────────────
+
+export interface UpdateNoteReq {
+  note_id: number | string;
+  title?: string;
+  content?: string;
+  tags?: string[];
+}
+
+export interface UpdateNoteResp {
+  note_id: number;
+  title: string;
+  updated_at: string;
+}
+
+// ─── Recall / Search Types ───────────────────────────────────────────────────
+
+export interface RecallResultItem {
+  note_id: string;
+  note_type: "NOTE" | "FILE" | "BLOGGER" | "LIVE" | "URL" | "DEDAO";
+  title: string;
+  content: string;
+  created_at: string;
+  page_no?: number;
+}
+
+export interface RecallResp {
+  results: RecallResultItem[];
 }

@@ -15,7 +15,7 @@ import {
   Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { GetNoteClient, GetNoteAPIError, SaveNoteReq } from "./client.js";
+import { GetNoteClient, GetNoteAPIError, SaveNoteReq, UpdateNoteReq } from "./client.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -152,6 +152,34 @@ const TOOLS: Tool[] = [
         note_id: {
           type: ["number", "string"],
           description: "笔记 ID",
+        },
+      },
+      required: ["note_id"],
+    },
+  },
+  {
+    name: "update_note",
+    description:
+      "更新已有笔记的标题、内容或标签。⚠️ 仅支持 plain_text 类型笔记，链接笔记、图片笔记等暂不支持更新。至少需要传 title、content、tags 中的一个。tags 是替换操作，会覆盖原有标签。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        note_id: {
+          type: ["number", "string"],
+          description: "笔记 ID（必填）",
+        },
+        title: {
+          type: "string",
+          description: "新标题（可选，不传则不更新）",
+        },
+        content: {
+          type: "string",
+          description: "新内容，Markdown 格式（可选，不传则不更新）",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "新标签列表（可选，不传则保持原标签；传则替换原有标签）",
         },
       },
       required: ["note_id"],
@@ -463,6 +491,52 @@ const TOOLS: Tool[] = [
       required: [],
     },
   },
+
+  // ── Recall / Search ──
+  {
+    name: "recall",
+    description:
+      "全局语义搜索：在所有笔记中进行语义召回。适用场景：「搜一下」「找找我哪些笔记提到了 XX」。返回结果按相关度从高到低排序。需要 note.recall.read scope。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description: "搜索关键词或语义描述（必填）",
+        },
+        top_k: {
+          type: "number",
+          description: "返回数量，默认 3，最大 10",
+          default: 3,
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "recall_knowledge",
+    description:
+      "知识库语义搜索：在指定知识库范围内进行语义召回。适用场景：「在我的 XX 知识库搜一下 XX」。返回结果按相关度从高到低排序。需要 note.topic.recall.read scope。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        topic_id: {
+          type: "string",
+          description: "知识库 ID（alias id，来自 list_topics 的 id 字段）（必填）",
+        },
+        query: {
+          type: "string",
+          description: "搜索关键词或语义描述（必填）",
+        },
+        top_k: {
+          type: "number",
+          description: "返回数量，默认 3，最大 10",
+          default: 3,
+        },
+      },
+      required: ["topic_id", "query"],
+    },
+  },
 ];
 
 // ─── Tool Handlers ───────────────────────────────────────────────────────────
@@ -499,6 +573,15 @@ async function handleTool(
     }
     case "delete_note": {
       return client.deleteNote(input.note_id as number | string);
+    }
+    case "update_note": {
+      const body: { note_id: number | string; title?: string; content?: string; tags?: string[] } = {
+        note_id: input.note_id as number | string,
+      };
+      if (input.title !== undefined) body.title = input.title as string;
+      if (input.content !== undefined) body.content = input.content as string;
+      if (input.tags !== undefined) body.tags = input.tags as string[];
+      return client.updateNote(body);
     }
     case "get_note_task_progress": {
       return client.getNoteTaskProgress(input.task_id as string);
@@ -622,6 +705,21 @@ async function handleTool(
     // ── Quota ──
     case "get_quota": {
       return client.getQuota();
+    }
+
+    // ── Recall / Search ──
+    case "recall": {
+      return client.recall({
+        query: input.query as string,
+        top_k: input.top_k as number | undefined,
+      });
+    }
+    case "recall_knowledge": {
+      return client.recallKnowledge({
+        topic_id: input.topic_id as string,
+        query: input.query as string,
+        top_k: input.top_k as number | undefined,
+      });
     }
 
     default:
