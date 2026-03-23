@@ -9,7 +9,10 @@ Get笔记是一款个人笔记管理工具。通过此 MCP Server，AI 模型可
 ## 使用场景
 
 - 用户说「帮我记一下」「保存到笔记」「记录下来」→ `save_note`
+- 用户说「改一下这个笔记」「更新笔记内容」→ `update_note`
 - 用户说「查一下我的笔记」「找找之前的笔记」→ `list_notes`
+- 用户说「搜一下」「找找我哪些笔记提到了 XX」→ `recall`
+- 用户说「在 XX 知识库搜一下」→ `recall_knowledge`
 - 用户分享了一个链接，说「保存这个」→ `save_note`（链接笔记）
 - 用户说「给这个笔记加个标签」→ `add_note_tags`
 
@@ -20,12 +23,15 @@ Exposes the following tools to AI models:
 | Tool | Description |
 |------|-------------|
 | `list_notes` | 获取笔记列表（游标分页） |
-| `get_note` | 获取笔记详情 |
-| `save_note` | 新建笔记（纯文本/链接，见下方类型限制） |
-| `get_note_task_progress` | 查询创建笔记任务进度（链接笔记） |
+| `get_note` | 获取笔记详情（支持 `image_quality=original` 获取原图） |
+| `save_note` | 新建笔记（纯文本/链接/图片，见下方类型说明） |
+| `update_note` | 更新笔记（标题/内容/标签，仅支持 plain_text 类型） |
+| `get_note_task_progress` | 查询创建笔记任务进度（链接/图片笔记） |
 | `delete_note` | 删除笔记（移入回收站） |
 | `add_note_tags` | 添加笔记标签 |
 | `delete_note_tag` | 删除笔记标签 |
+| `recall` | 全局语义搜索（在所有笔记中搜索） |
+| `recall_knowledge` | 知识库语义搜索（在指定知识库中搜索） |
 | `list_topics` | 获取知识库列表 |
 | `create_topic` | 创建知识库 |
 | `list_topic_notes` | 获取知识库笔记列表 |
