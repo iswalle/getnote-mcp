@@ -99,8 +99,8 @@ export class GetNoteClient {
     });
   }
 
-  async getNote(id: number | string) {
-    return this.request<GetNoteResp>("GET", "/resource/note/detail", { id });
+  async getNote(id: number | string, image_quality?: string) {
+    return this.request<GetNoteResp>("GET", "/resource/note/detail", { id, image_quality });
   }
 
   async saveNote(body: SaveNoteReq) {

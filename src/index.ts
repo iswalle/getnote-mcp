@@ -81,6 +81,11 @@ const TOOLS: Tool[] = [
           type: ["number", "string"],
           description: "笔记 ID",
         },
+        image_quality: {
+          type: "string",
+          enum: ["original"],
+          description: "图片质量。传 'original' 返回正文中图片的原图链接（无压缩）",
+        },
       },
       required: ["id"],
     },
@@ -228,7 +233,7 @@ const TOOLS: Tool[] = [
   // ── Knowledge / Topics ──
   {
     name: "list_topics",
-    description: "获取知识库列表。",
+    description: "获取知识库列表（每页固定 20 条）。返回 topics[]、has_more、total。每个 topic 包含 id（alias id）、name、description、cover、stats（笔记数、文件数、博主数、直播数）等。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -236,11 +241,6 @@ const TOOLS: Tool[] = [
           type: "number",
           description: "页码，从 1 开始（默认 1）",
           default: 1,
-        },
-        size: {
-          type: "number",
-          description: "每页数量（默认 20，最大 100）",
-          default: 20,
         },
       },
       required: [],
@@ -340,13 +340,19 @@ const TOOLS: Tool[] = [
   {
     name: "get_upload_token",
     description:
-      "获取 OSS 图片上传凭证。返回 accessid/host/policy/signature 等字段，用于 multipart/form-data POST 上传图片到阿里云 OSS。上传成功后获取 image_id，再用 save_note 创建图片笔记。",
+      "获取 OSS 图片上传凭证。返回 accessid/host/policy/signature 等字段，用于 multipart/form-data POST 上传图片到阿里云 OSS。上传成功后获取 image_id，再用 save_note 创建图片笔记。⚠️ mime_type 必须与实际文件格式一致，否则 OSS 签名失败。",
     inputSchema: {
       type: "object" as const,
       properties: {
         mime_type: {
           type: "string",
-          description: "图片类型（如 png、jpg、jpeg、gif、webp），默认 png",
+          enum: ["jpg", "png", "gif", "webp", "jpeg"],
+          description: "图片类型：jpg | png | gif | webp，默认 png",
+        },
+        count: {
+          type: "number",
+          description: "需要的 token 数量，默认 1，最大 9（批量上传时使用）",
+          default: 1,
         },
       },
       required: [],
@@ -555,7 +561,7 @@ async function handleTool(
       return client.listNotes({ since_id });
     }
     case "get_note": {
-      return client.getNote(input.id as number | string);
+      return client.getNote(input.id as number | string, input.image_quality as string | undefined);
     }
     case "save_note": {
       const body: SaveNoteReq = {};
@@ -605,7 +611,6 @@ async function handleTool(
     case "list_topics": {
       return client.listTopics({
         page: input.page as number | undefined,
-        size: input.size as number | undefined,
       });
     }
     case "create_topic": {
@@ -641,6 +646,7 @@ async function handleTool(
     case "get_upload_token": {
       return client.getUploadToken({
         mime_type: input.mime_type as string | undefined,
+        count: input.count as number | undefined,
       });
     }
     case "upload_image": {
