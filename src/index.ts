@@ -223,7 +223,7 @@ const TOOLS: Tool[] = [
         },
         tag_id: {
           type: "string",
-          description: "要删除的标签 ID",
+          description: "要删除的标签 ID（来自 add_note_tags 返回或 get_note 的 tags[].id 字段）",
         },
       },
       required: ["note_id", "tag_id"],
@@ -233,7 +233,7 @@ const TOOLS: Tool[] = [
   // ── Knowledge / Topics ──
   {
     name: "list_topics",
-    description: "获取知识库列表（每页固定 20 条）。返回 topics[]、has_more、total。每个 topic 包含 id（alias id）、name、description、cover、stats（笔记数、文件数、博主数、直播数）等。",
+    description: "获取知识库列表（每页固定 20 条）。返回 topics[]、has_more、total。每个 topic 包含 topic_id（知识库 ID，后续所有接口的 topic_id 参数均传此值）、name、description、cover、stats（笔记数、文件数、博主数、直播数）等。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -393,7 +393,7 @@ const TOOLS: Tool[] = [
       properties: {
         topic_id: {
           type: "string",
-          description: "知识库 ID（alias id，来自 list_topics 的 id 字段）",
+          description: "知识库 ID（来自 list_topics 的 topic_id 字段）",
         },
         page: {
           type: "number",
@@ -412,7 +412,7 @@ const TOOLS: Tool[] = [
       properties: {
         topic_id: {
           type: "string",
-          description: "知识库 ID（alias id）",
+          description: "知识库 ID（来自 list_topics 的 topic_id 字段）",
         },
         follow_id: {
           type: "number",
@@ -435,7 +435,7 @@ const TOOLS: Tool[] = [
       properties: {
         topic_id: {
           type: "string",
-          description: "知识库 ID（alias id）",
+          description: "知识库 ID（来自 list_topics 的 topic_id 字段）",
         },
         post_id: {
           type: "string",
@@ -456,7 +456,7 @@ const TOOLS: Tool[] = [
       properties: {
         topic_id: {
           type: "string",
-          description: "知识库 ID（alias id）",
+          description: "知识库 ID（来自 list_topics 的 topic_id 字段）",
         },
         page: {
           type: "number",
@@ -475,7 +475,7 @@ const TOOLS: Tool[] = [
       properties: {
         topic_id: {
           type: "string",
-          description: "知识库 ID（alias id）",
+          description: "知识库 ID（来自 list_topics 的 topic_id 字段）",
         },
         live_id: {
           type: "number",
@@ -528,7 +528,7 @@ const TOOLS: Tool[] = [
       properties: {
         topic_id: {
           type: "string",
-          description: "知识库 ID（alias id，来自 list_topics 的 id 字段）（必填）",
+          description: "知识库 ID（来自 list_topics 的 topic_id 字段）（必填）",
         },
         query: {
           type: "string",
@@ -743,7 +743,7 @@ async function main() {
   const server = new Server(
     {
       name: "getnote-mcp",
-      version: "1.0.0",
+      version: "1.2.0",
     },
     {
       capabilities: {
@@ -774,21 +774,21 @@ async function main() {
       };
     } catch (err) {
       if (err instanceof GetNoteAPIError) {
+        const errPayload: Record<string, unknown> = {
+          error: true,
+          code: err.code,
+          reason: err.reason,
+          message: err.message,
+          request_id: err.requestId,
+        };
+        if (err.code === 10201) {
+          errPayload.membership_url = "https://www.biji.com/checkout?product_alias=6AydVpYeKl";
+        }
         return {
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify(
-                {
-                  error: true,
-                  code: err.code,
-                  reason: err.reason,
-                  message: err.message,
-                  request_id: err.requestId,
-                },
-                null,
-                2
-              ),
+              text: JSON.stringify(errPayload, null, 2),
             },
           ],
           isError: true,
