@@ -30,6 +30,7 @@
   },
   "overrides": {
     "express-rate-limit": "^8.2.2",
-    "hono": "^4.12.7"
+    "hono": "^4.12.7",
+    "path-to-regexp": "^8.4.1"
   }
 }
