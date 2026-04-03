@@ -299,8 +299,8 @@ const TOOLS: Tool[] = [
         },
         note_ids: {
           type: "array",
-          items: { type: ["number", "string"] },
-          description: "笔记 ID 列表（最多 20 个）",
+          items: { type: "string" },
+          description: "笔记 ID 列表（字符串格式，最多 20 个）",
         },
       },
       required: ["topic_id", "note_ids"],
@@ -318,8 +318,8 @@ const TOOLS: Tool[] = [
         },
         note_ids: {
           type: "array",
-          items: { type: ["number", "string"] },
-          description: "笔记 ID 列表",
+          items: { type: "string" },
+          description: "笔记 ID 列表（字符串格式）",
         },
       },
       required: ["topic_id", "note_ids"],
@@ -629,13 +629,13 @@ async function handleTool(
     case "batch_add_notes_to_topic": {
       return client.batchAddNotesToTopic({
         topic_id: input.topic_id as string,
-        note_ids: input.note_ids as (number | string)[],
+        note_ids: (input.note_ids as (number | string)[]).map(String),
       });
     }
     case "remove_note_from_topic": {
       return client.removeNoteFromTopic({
         topic_id: input.topic_id as string,
-        note_ids: input.note_ids as (number | string)[],
+        note_ids: (input.note_ids as (number | string)[]).map(String),
       });
     }
 

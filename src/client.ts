@@ -253,7 +253,7 @@ export class GetNoteClient {
     );
   }
 
-  async batchAddNotesToTopic(body: { topic_id: string; note_ids: (number | string)[] }) {
+  async batchAddNotesToTopic(body: { topic_id: string; note_ids: string[] }) {
     return this.request<BatchAddNotesResp>(
       "POST",
       "/resource/knowledge/note/batch-add",
@@ -262,7 +262,7 @@ export class GetNoteClient {
     );
   }
 
-  async removeNoteFromTopic(body: { topic_id: string; note_ids: (number | string)[] }) {
+  async removeNoteFromTopic(body: { topic_id: string; note_ids: string[] }) {
     return this.request<RemoveNoteResp>(
       "POST",
       "/resource/knowledge/note/remove",
@@ -528,12 +528,12 @@ export interface ListTopicNotesResp {
 export interface BatchAddNotesResp {
   topic_id?: string;
   success_count: number;
-  failed_note_ids: (number | string)[];
+  failed_note_ids: string[];
 }
 
 export interface RemoveNoteResp {
   removed_count: number;
-  failed_note_ids: (number | string)[];
+  failed_note_ids: string[];
 }
 
 export interface QuotaInfo {
