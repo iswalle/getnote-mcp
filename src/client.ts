@@ -600,7 +600,7 @@ export interface BloggerContentDetail extends BloggerContentItem {
 // ─── Live Types ──────────────────────────────────────────────────────────────
 
 export interface LiveItem {
-  live_id: number;
+  live_id: string | number; // API may return string or number
   follow_id: number;
   name: string;
   cover: string;
