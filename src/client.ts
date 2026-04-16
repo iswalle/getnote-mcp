@@ -319,6 +319,32 @@ export class GetNoteClient {
     );
   }
 
+  async followTopicLive(params: { topic_id: string; link: string }) {
+    return this.request<FollowTopicLiveResp>(
+      "POST",
+      "/resource/knowledge/live/follow",
+      undefined,
+      { topic_id: params.topic_id, link: params.link }
+    );
+  }
+
+  async shareNote(params: { note_id: string; share_exclude_audio?: boolean }) {
+    return this.request<ShareNoteResp>(
+      "POST",
+      "/resource/note/sharing",
+      undefined,
+      { note_id: params.note_id, share_exclude_audio: params.share_exclude_audio }
+    );
+  }
+
+  async listSubscribeTopics(params: { page?: number }) {
+    return this.request<ListSubscribeTopicsResp>(
+      "GET",
+      "/resource/knowledge/subscribe/list",
+      { page: params.page }
+    );
+  }
+
   // ─── Rate Limit / Quota ──────────────────────────────────────────────────
 
   async getQuota() {
@@ -629,6 +655,32 @@ export interface LiveDetail {
   post_media_text: string;
   post_create_time: string;
   post_publish_time: string;
+}
+
+// ─── Follow Topic Live Types ─────────────────────────────────────────────────
+
+export interface FollowTopicLiveResp {
+  follow_id: number;
+  url: string;
+  platform: string;
+  type: string;
+  created_at: string;
+}
+
+// ─── Share Note Types ─────────────────────────────────────────────────────────
+
+export interface ShareNoteResp {
+  note_id: string;
+  share_id: string;
+  share_url: string;
+}
+
+// ─── List Subscribe Topics Types ──────────────────────────────────────────────
+
+export interface ListSubscribeTopicsResp {
+  topics: KnowledgeTopic[];
+  has_more: boolean;
+  total: number;
 }
 
 // ─── Update Note Types ───────────────────────────────────────────────────────
