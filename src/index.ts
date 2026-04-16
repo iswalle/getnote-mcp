@@ -489,7 +489,7 @@ const TOOLS: Tool[] = [
   {
     name: "follow_topic_live",
     description:
-      "订阅一个直播频道到知识库。直播结束后经 AI 处理即可通过 list_topic_lives 查看。需要 topic.live.read scope。",
+      "订阅一个得到 App 直播到知识库。直播结束后经 AI 处理即可通过 list_topic_lives 查看。目前仅支持得到 App 直播链接。需要 topic.live.read scope。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -499,11 +499,7 @@ const TOOLS: Tool[] = [
         },
         link: {
           type: "string",
-          description: "直播链接",
-        },
-        platform: {
-          type: "string",
-          description: "平台（可选，可自动推断）",
+          description: "得到 App 直播链接（目前仅支持得到）",
         },
       },
       required: ["topic_id", "link"],
@@ -774,7 +770,6 @@ async function handleTool(
       return client.followTopicLive({
         topic_id: input.topic_id as string,
         link: input.link as string,
-        platform: input.platform as string | undefined,
       });
     }
 

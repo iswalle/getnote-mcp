@@ -319,12 +319,12 @@ export class GetNoteClient {
     );
   }
 
-  async followTopicLive(params: { topic_id: string; link: string; platform?: string }) {
+  async followTopicLive(params: { topic_id: string; link: string }) {
     return this.request<FollowTopicLiveResp>(
       "POST",
       "/resource/knowledge/live/follow",
       undefined,
-      { topic_id: params.topic_id, link: params.link, platform: params.platform }
+      { topic_id: params.topic_id, link: params.link }
     );
   }
 
