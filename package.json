@@ -1,6 +1,6 @@
 {
   "name": "getnote-mcp",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "MCP server for Get笔记 (GetNotes) API",
   "main": "dist/index.js",
   "bin": {
@@ -12,7 +12,13 @@
     "start": "node dist/index.js",
     "prepare": "npm run build"
   },
-  "keywords": ["mcp", "getnotes", "get笔记", "notes", "ai"],
+  "keywords": [
+    "mcp",
+    "getnotes",
+    "get笔记",
+    "notes",
+    "ai"
+  ],
   "author": "Get笔记",
   "license": "MIT",
   "dependencies": {
