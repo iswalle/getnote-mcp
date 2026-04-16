@@ -486,6 +486,68 @@ const TOOLS: Tool[] = [
     },
   },
 
+  {
+    name: "follow_topic_live",
+    description:
+      "订阅一个直播频道到知识库。直播结束后经 AI 处理即可通过 list_topic_lives 查看。需要 topic.live.read scope。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        topic_id: {
+          type: "string",
+          description: "知识库 ID",
+        },
+        link: {
+          type: "string",
+          description: "直播链接",
+        },
+        platform: {
+          type: "string",
+          description: "平台（可选，可自动推断）",
+        },
+      },
+      required: ["topic_id", "link"],
+    },
+  },
+
+  // ── Note / Sharing ──
+  {
+    name: "share_note",
+    description:
+      "生成笔记的公开分享链接。幂等接口，多次调用返回同一个 share_url。需要 note.content.read scope。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        note_id: {
+          type: "string",
+          description: "笔记 ID（字符串格式）",
+        },
+        share_exclude_audio: {
+          type: "boolean",
+          description: "是否排除音频内容，默认 false",
+        },
+      },
+      required: ["note_id"],
+    },
+  },
+
+  // ── Knowledge / Subscribe ──
+  {
+    name: "list_subscribe_topics",
+    description:
+      "获取当前用户订阅的知识库列表（他人公开的，非自己创建）。返回 topics[]、has_more、total。",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        page: {
+          type: "number",
+          description: "页码，从 1 开始，默认 1",
+        },
+      },
+      required: [],
+    },
+  },
+
   // ── Quota ──
   {
     name: "get_quota",
@@ -705,6 +767,29 @@ async function handleTool(
       return client.getLiveDetail({
         topic_id: input.topic_id as string,
         live_id: input.live_id as number | string,
+      });
+    }
+
+    case "follow_topic_live": {
+      return client.followTopicLive({
+        topic_id: input.topic_id as string,
+        link: input.link as string,
+        platform: input.platform as string | undefined,
+      });
+    }
+
+    // ── Note / Sharing ──
+    case "share_note": {
+      return client.shareNote({
+        note_id: input.note_id as string,
+        share_exclude_audio: input.share_exclude_audio as boolean | undefined,
+      });
+    }
+
+    // ── Knowledge / Subscribe ──
+    case "list_subscribe_topics": {
+      return client.listSubscribeTopics({
+        page: input.page as number | undefined,
       });
     }
 
