@@ -93,7 +93,7 @@ const TOOLS: Tool[] = [
   {
     name: "save_note",
     description:
-      "新建笔记（⚠️ 仅支持新建，不支持编辑已有笔记）。支持纯文本笔记（plain_text）、链接笔记（link）和图片笔记（img_text）。\n\n🔗 **笔记内链**：Get笔记正文支持链接到其他笔记，格式为 `https://biji.com/note/{note_id}`。如需在笔记正文中引用其他笔记，按此格式填写 content 中的链接。\n\n**图片笔记流程**：先用 upload_image 上传图片获取 image_url，再调用此接口传入 image_urls。\n\n**返回值说明**：\n- `plain_text`：同步返回 `id`、`title`、`created_at`、`updated_at`。\n- `link`（分享链接：`biji.com/note/share_note/*` 或 `d.biji.com/*` 短链）：同步返回 `id`、`title`、`created_at`、`updated_at`，**无需轮询**。\n- `link`（普通链接）：返回 `tasks` 数组（每项含 `task_id` 和 `url`），需用 `get_note_task_progress` 轮询进度。",
+      "新建笔记（⚠️ 仅支持新建，不支持编辑已有笔记）。支持纯文本笔记（plain_text）、链接笔记（link）和图片笔记（img_text）。\n\n🔗 **笔记内链**：Get笔记正文支持链接到其他笔记，格式为 `https://biji.com/note/{note_id}`。如需在笔记正文中引用其他笔记，按此格式填写 content 中的链接。若当前笔记后续会被分享出去，则应优先调用 `share_note` 工具获取被引用笔记的分享链接，并以分享链接替代内链写入正文。\n\n**图片笔记流程**：先用 upload_image 上传图片获取 image_url，再调用此接口传入 image_urls。\n\n**返回值说明**：\n- `plain_text`：同步返回 `id`、`title`、`created_at`、`updated_at`。\n- `link`（分享链接：`biji.com/note/share_note/*` 或 `d.biji.com/*` 短链）：同步返回 `id`、`title`、`created_at`、`updated_at`，**无需轮询**。\n- `link`（普通链接）：返回 `tasks` 数组（每项含 `task_id` 和 `url`），需用 `get_note_task_progress` 轮询进度。",
     inputSchema: {
       type: "object" as const,
       properties: {
