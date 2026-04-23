@@ -1,5 +1,5 @@
 {
-  "name": "getnote-mcp",
+  "name": "@getnote/mcp",
   "version": "1.3.1",
   "description": "MCP server for Get笔记 (GetNotes) API",
   "main": "dist/index.js",
