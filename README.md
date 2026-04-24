@@ -46,25 +46,29 @@ Exposes the following tools to AI models:
 | `list_topic_lives` | 获取知识库已完成直播列表 |
 | `get_live_detail` | 获取直播详情（含 AI 摘要和原文转写） |
 | `get_quota` | 查询 API 调用配额 |
+| `share_note` | 生成笔记分享链接 |
+| `follow_topic_live` | 在知识库里订阅得到直播 |
+| `list_subscribe_topics` | 获取我订阅的知识库列表 |
 
 ## Installation
 
 ```bash
-npm install
-npm run build
+# 直接运行（推荐，无需克隆）
+npx @getnote/mcp
+
+# 或全局安装
+npm install -g @getnote/mcp
 ```
 
 ## Usage
 
-### ⚠️ API Key 和 Client ID 配置（重要）
+### 授权登录（推荐）
+
+首次使用时，在 AI 对话里说「请帮我授权 Get笔记」，AI 会自动引导 OAuth 登录，无需手动配置。
+
+### 手动配置 API Key（备选）
 
 获取 API Key 和 Client ID：**https://www.biji.com/openapi**
-
-为确保每次启动都能正常使用，请将 API Key 和 Client ID 保存到持久化配置中：
-
-1. **环境变量**（推荐）：添加到 shell 配置文件（如 `~/.zshrc`）
-2. **MCP 配置文件**：添加到 Claude Desktop 或其他 MCP 客户端的配置
-3. **项目 .env 文件**：在项目目录创建 `.env` 文件
 
 ### Environment variable
 
