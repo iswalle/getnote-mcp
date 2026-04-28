@@ -510,14 +510,22 @@ export interface ImageUploadToken {
 // 直接返回单个 token
 export type GetUploadTokenResp = ImageUploadToken;
 
+export interface KnowledgeTopicStats {
+  note_count: number;
+  file_count: number;
+  blogger_count: number;
+  live_count: number;
+}
+
 export interface KnowledgeTopic {
   id: string;
   name: string;
   description?: string;
   cover?: string;
   scope?: string;
-  created_at?: number;
-  updated_at?: number;
+  stats?: KnowledgeTopicStats;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ListTopicsResp {
