@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/iswalle-getnote-mcp-badge.png)](https://mseep.ai/app/iswalle-getnote-mcp)
+
 # getnote-mcp
 
 MCP (Model Context Protocol) server for [Get笔记](https://biji.com) Open API.
