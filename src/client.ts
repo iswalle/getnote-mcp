@@ -2,6 +2,25 @@ import axios, { AxiosInstance, AxiosError } from "axios";
 
 const BASE_URL = "https://openapi.biji.com/open/api/v1";
 
+/**
+ * Preserves long-integer ID fields as JSON strings before JSON.parse, so JS
+ * doesn't silently round-trip them through `number` (which loses precision
+ * beyond 2^53 ≈ 9e15). Get笔记 note IDs are snowflake-like (≈ 1.9e18) and
+ * exceed this limit, so without this hook `note_id` / `next_cursor` come
+ * back corrupted and cursor pagination silently loops on the same page.
+ *
+ * Matches only when the captured field value has 16+ digits, so short IDs
+ * remain numbers.
+ */
+function parseJsonPreservingLargeIntegerStrings(data: unknown) {
+  if (typeof data !== "string" || data.trim() === "") return data;
+  const safe = data.replace(
+    /"(note_id|next_cursor|id|parent_id|topic_id|since_id|share_id)"\s*:\s*(\d{16,})/g,
+    '"$1":"$2"'
+  );
+  return JSON.parse(safe);
+}
+
 export class GetNoteAPIError extends Error {
   constructor(
     public readonly code: number,
@@ -27,6 +46,7 @@ export class GetNoteClient {
       },
       timeout: 30000,
     });
+    this.http.defaults.transformResponse = [parseJsonPreservingLargeIntegerStrings];
 
     this.http.interceptors.response.use(
       (res) => res,
@@ -371,14 +391,18 @@ export interface TagInfo {
 }
 
 export interface NoteItem {
-  id: number;
+  /**
+   * Note ID. Returned as string because the actual values exceed
+   * Number.MAX_SAFE_INTEGER. See parseJsonPreservingLargeIntegerStrings.
+   */
+  id: string;
   title: string;
   content: string;
   ref_content?: string;
   note_type: string;
   source: string;
   tags: TagInfo[];
-  parent_id?: number;
+  parent_id?: string;
   children_count?: number;
   topics?: { id: string; name: string }[];
   is_child_note?: boolean;
@@ -415,7 +439,11 @@ export interface NoteDetail extends NoteItem {
 export interface ListNotesResp {
   notes: NoteItem[];
   has_more: boolean;
-  next_cursor?: number;
+  /**
+   * Cursor for the next page. Pass it back as `since_id` on the next call.
+   * Returned as string because IDs exceed Number.MAX_SAFE_INTEGER.
+   */
+  next_cursor?: string;
   total: number;
 }
 
@@ -442,7 +470,7 @@ export interface NoteTaskItem {
 }
 
 export interface SaveNoteResp {
-  id: number;
+  id: string;
   title: string;
   created_at: string;
   updated_at: string;
@@ -465,7 +493,7 @@ export interface NoteTaskProgress {
   /** 任务状态：pending / processing / success / failed */
   status: "pending" | "processing" | "success" | "failed";
   /** 笔记 ID（status 为 success 时返回） */
-  note_id?: number;
+  note_id?: string;
   /** 错误信息（status 为 failed 时返回） */
   error_msg?: string;
   /** 任务创建时间 */
@@ -475,16 +503,16 @@ export interface NoteTaskProgress {
 }
 
 export interface DeleteNoteResp {
-  note_id: number;
+  note_id: string;
 }
 
 export interface AddNoteTagsResp {
-  note_id: number;
+  note_id: string;
   tags: TagInfo[];
 }
 
 export interface DeleteNoteTagResp {
-  note_id: number;
+  note_id: string;
   tags: TagInfo[];
 }
 
@@ -543,7 +571,7 @@ export interface CreateTopicResp {
 }
 
 export interface TopicNoteItem {
-  note_id: number;
+  note_id: string;
   title: string;
   content: string;
   note_type: string;
@@ -701,7 +729,7 @@ export interface UpdateNoteReq {
 }
 
 export interface UpdateNoteResp {
-  note_id: number;
+  note_id: string;
   title: string;
   updated_at: string;
 }
