@@ -16,6 +16,13 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { GetNoteClient, GetNoteAPIError, SaveNoteReq, UpdateNoteReq } from "./client.js";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const pkg = JSON.parse(
+  readFileSync(join(__dirname, "..", "package.json"), "utf-8")
+) as { version: string };
+const SERVER_VERSION: string = pkg.version;
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -823,7 +830,7 @@ async function main() {
   const server = new Server(
     {
       name: "getnote-mcp",
-      version: "1.2.0",
+      version: SERVER_VERSION,
     },
     {
       capabilities: {
