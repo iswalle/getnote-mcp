@@ -1,7 +1,7 @@
 {
   "name": "@getnote/mcp",
-  "version": "1.4.0",
-  "description": "MCP server for Get\u7b14\u8bb0 (GetNotes) API",
+  "version": "1.4.1",
+  "description": "MCP server for Get笔记 (GetNotes) API",
   "main": "dist/index.js",
   "bin": {
     "getnote-mcp": "dist/index.js"
@@ -15,15 +15,15 @@
   "keywords": [
     "mcp",
     "getnotes",
-    "get\u7b14\u8bb0",
+    "get笔记",
     "notes",
     "ai"
   ],
-  "author": "Get\u7b14\u8bb0",
+  "author": "Get笔记",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "axios": "^1.7.0",
+    "axios": "^1.16.1",
     "form-data": "^4.0.0",
     "zod": "^3.22.0"
   },
@@ -36,7 +36,10 @@
   },
   "overrides": {
     "express-rate-limit": "^8.2.2",
-    "hono": "^4.12.7",
-    "path-to-regexp": "^8.4.1"
+    "hono": "^4.12.18",
+    "path-to-regexp": "^8.4.1",
+    "fast-uri": "^3.1.2",
+    "ip-address": "^10.2.0",
+    "axios": "^1.16.1"
   }
 }
