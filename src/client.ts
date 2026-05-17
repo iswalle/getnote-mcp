@@ -15,7 +15,7 @@ const BASE_URL = "https://openapi.biji.com/open/api/v1";
 function parseJsonPreservingLargeIntegerStrings(data: unknown) {
   if (typeof data !== "string" || data.trim() === "") return data;
   const safe = data.replace(
-    /"(note_id|next_cursor|id|parent_id|topic_id|since_id|share_id)"\s*:\s*(\d{16,})/g,
+    /"(note_id|next_cursor|cursor|id|parent_id|topic_id|since_id|share_id)"\s*:\s*(\d{16,})/g,
     '"$1":"$2"'
   );
   return JSON.parse(safe);
@@ -113,9 +113,9 @@ export class GetNoteClient {
 
   // ─── Notes ───────────────────────────────────────────────────────────────
 
-  async listNotes(params: { since_id: number | string }) {
+  async listNotes(params: { cursor?: string }) {
     return this.request<ListNotesResp>("GET", "/resource/note/list", {
-      since_id: params.since_id,
+      ...(params.cursor ? { cursor: params.cursor } : {}),
     });
   }
 
@@ -440,9 +440,11 @@ export interface ListNotesResp {
   notes: NoteItem[];
   has_more: boolean;
   /**
-   * Cursor for the next page. Pass it back as `since_id` on the next call.
+   * Cursor for the next page. Pass it back as `cursor` on the next call.
    * Returned as string because IDs exceed Number.MAX_SAFE_INTEGER.
    */
+  cursor?: string;
+  /** @deprecated use `cursor` instead */
   next_cursor?: string;
   total: number;
 }

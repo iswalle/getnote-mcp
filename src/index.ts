@@ -71,8 +71,7 @@ const TOOLS: Tool[] = [
       properties: {
         since_id: {
           type: "string",
-          description: "游标，返回 ID 小于此值的笔记。首次传 \"0\"，后续传上一页最后一条笔记的 note_id（字符串格式，禁止转为 number，笔记 ID 为 19 位整数会超过 JS 精度上限）",
-          default: "0",
+          description: "翻页游标。首次不传（或传 \"0\"），后续将上一次响应的 cursor 字段直接传入即可，无需任何转换",
         },
       },
       required: [],
@@ -622,8 +621,8 @@ async function handleTool(
   switch (name) {
     // ── Notes ──
     case "list_notes": {
-      const since_id = String((input.since_id as number | string | undefined) ?? "0");
-      return client.listNotes({ since_id });
+      const since_id = (input.since_id as string | undefined);
+      return client.listNotes({ cursor: since_id === "0" ? undefined : since_id });
     }
     case "get_note": {
       return client.getNote(input.id as number | string, input.image_quality as string | undefined);
