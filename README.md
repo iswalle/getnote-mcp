@@ -2,9 +2,9 @@
 
 # getnote-mcp
 
-MCP (Model Context Protocol) server for [Get笔记](https://biji.com) Open API.
+MCP (Model Context Protocol) server for [得到大脑（Get笔记）](https://biji.com) Open API.
 
-Get笔记是一款个人笔记管理工具。通过此 MCP Server，AI 模型可以帮助用户管理笔记。
+得到大脑（Get笔记）是一款个人笔记管理工具。通过此 MCP Server，AI 模型可以帮助用户管理笔记。
 
 > 🔑 **获取 API Key**：https://www.biji.com/openapi
 
@@ -66,7 +66,7 @@ npm install -g @getnote/mcp
 
 ### 授权登录（推荐）
 
-首次使用时，在 AI 对话里说「请帮我授权 Get笔记」，AI 会自动引导 OAuth 登录，无需手动配置。
+首次使用时，在 AI 对话里说「请帮我授权 得到大脑（Get笔记）」，AI 会自动引导 OAuth 登录，无需手动配置。
 
 ### 手动配置 API Key（备选）
 
@@ -127,7 +127,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `link` | 链接笔记（需传 `link_url`） |
 | `img_text` | 图片笔记（需传 `image_urls`，通过上传图片到 OSS 获取） |
 
-> **语音笔记等其他类型**只能在 Get笔记 App 或 Web 端创建，MCP 可以读取但无法创建。
+> **语音笔记等其他类型**只能在 得到大脑（Get笔记） App 或 Web 端创建，MCP 可以读取但无法创建。
 
 ## 图片上传流程
 
@@ -189,13 +189,13 @@ Input: {
 - **Base URL**: `https://openapi.biji.com/open/api/v1`
 - **Auth**: Bearer Token (API Key)
 
-Get your API Key and Client ID at [Get笔记开放平台](https://www.biji.com/openapi).
+Get your API Key and Client ID at [得到大脑（Get笔记）开放平台](https://www.biji.com/openapi).
 
 ## 🚀 进阶用法：用笔记内链实践柳比歇夫时间日志法
 
 柳比歇夫时间日志法的核心是**每天记录自己把时间花在了哪里**，事后统计、复盘、改进。
 
-结合 Get笔记内链，AI 可以帮你自动串联：
+结合 得到大脑（Get笔记）内链，AI 可以帮你自动串联：
 
 **每天早上**
 
