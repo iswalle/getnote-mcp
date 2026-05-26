@@ -868,7 +868,7 @@ async function main() {
           request_id: err.requestId,
         };
         if (err.code === 10201) {
-          errPayload.membership_url = "https://www.biji.com/checkout?product_alias=6AydVpYeKl";
+          errPayload.membership_url = "https://www.biji.com/checkout?product_alias=9Ab36BB3ZD&spm=wangye";
         }
         return {
           content: [
