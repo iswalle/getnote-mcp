@@ -1,7 +1,7 @@
 {
   "name": "@getnote/mcp",
-  "version": "1.4.8",
-  "description": "MCP server for Get笔记 (GetNotes) API",
+  "version": "1.4.9",
+  "description": "MCP server for 得到大脑（Get笔记） API",
   "main": "dist/index.js",
   "bin": {
     "getnote-mcp": "dist/index.js"
@@ -19,7 +19,7 @@
     "notes",
     "ai"
   ],
-  "author": "Get笔记",
+  "author": "得到大脑（Get笔记）",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
