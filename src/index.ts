@@ -136,7 +136,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "get_note",
-    description: "获取指定笔记的详细内容，包括正文、标签、附件、音频转录、网页链接等。",
+    description: "获取指定笔记的详细内容，包括正文、标签、附件、音频转录、网页链接等。\n\n**字段语义说明（AI Agent 重要参考）**：\n`content` 通常是 AI 总结，不一定是原文。不同类型笔记的原文字段如下：\n- 普通文字笔记（plain_text）：原文 = `note.content`\n- 链接/网页笔记（link）：原文 = `note.web_page.content`，AI 总结 = `note.content`\n- 录音笔记（audio/local_audio 等）：转写原文 = `note.audio.original`，AI 总结 = `note.content`\n\n用户要求'读原文'时，先看 `note.note_type`，再按上述对应关系取字段。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -333,7 +333,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "list_topic_notes",
-    description: "获取指定知识库内的笔记列表（每页 20 条）。",
+    description: "获取指定知识库内的笔记列表（每页 20 条）。\n\n**AI Agent 提示**：列表返回的 `content` 字段可能较长且通常为 AI 总结。如需先获取标题和类型再按需读详情，可用此接口获取 `note_id` 列表，再对感兴趣的条目逐一调用 `get_note`。",
     inputSchema: {
       type: "object" as const,
       properties: {
