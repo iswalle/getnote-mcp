@@ -499,7 +499,7 @@ const TOOLS: Tool[] = [
   {
     name: "upload_knowledge_file",
     description: "OSS 直传成功后将原文件加入知识库，只接收元数据，不接收本地路径或 base64。返回处理中的资源不等于入库成功；用 list_topic_directories 查询同一 ID，直到 SUCCESS 或 FAIL。",
-    inputSchema: { type: "object", properties: { topic_id: { type: "string" }, directory_id: { type: "string" }, file_name: { type: "string" }, file_type: { type: "string" }, md5: { type: "string" }, url: { type: "string" } }, required: ["topic_id", "directory_id", "file_name", "file_type", "md5", "url"] },
+    inputSchema: { type: "object", additionalProperties: false, properties: { topic_id: { type: "string" }, directory_id: { type: "string" }, file_name: { type: "string" }, file_type: { type: "string" }, md5: { type: "string" }, url: { type: "string" } }, required: ["topic_id", "directory_id", "file_name", "file_type", "md5", "url"] },
   },
   // ── Image ──
   {
@@ -945,7 +945,7 @@ async function handleTool(
     case "get_sprout": return client.getSprout(z.string().min(1).parse(input.id));
     case "get_knowledge_file_capabilities": return client.getKnowledgeFileCapabilities();
     case "get_knowledge_file_upload_token": return client.getKnowledgeFileUploadToken(z.string().min(1).parse(input.mime_type));
-    case "upload_knowledge_file": return client.uploadKnowledgeFile(z.object({ topic_id:z.string().min(1), directory_id:z.string().regex(/^\d+$/), file_name:z.string().min(1), file_type:z.string().min(1), md5:z.string().regex(/^[a-fA-F0-9]{32}$/), url:z.string().url() }).parse(input));
+    case "upload_knowledge_file": return client.uploadKnowledgeFile(z.object({ topic_id:z.string().min(1), directory_id:z.string().regex(/^\d+$/), file_name:z.string().min(1), file_type:z.string().min(1), md5:z.string().regex(/^[a-fA-F0-9]{32}$/), url:z.string().url() }).strict().parse(input));
     case "get_upload_config": {
       return client.getUploadConfig();
     }
