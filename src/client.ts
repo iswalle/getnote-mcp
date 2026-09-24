@@ -498,6 +498,10 @@ export interface NoteDetail extends NoteItem {
     content?: string;
   };
   quick_note?: string;
+  chapter_timeline?: {
+    source: string;
+    items: { start_ms: number; title: string }[];
+  };
   timeline?: {
     version: number;
     schema_version?: number;

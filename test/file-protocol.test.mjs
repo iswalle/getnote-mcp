@@ -13,6 +13,10 @@ test('stdio tools enforce metadata-only uploads and preserve business errors', a
     req.on('end', () => {
       received.push({ path: req.url, body: body && JSON.parse(body) });
       res.setHeader('Content-Type', 'application/json');
+      if (req.url.includes('/note/detail')) {
+        res.end(JSON.stringify({success:true,data:{note:{id:'123',title:'chapters',chapter_timeline:{source:'summary_markdown_rules',items:[{start_ms:1000,title:'Opening'}]},timeline:{moments:[]}}}}));
+        return;
+      }
       const token = req.url.includes('/upload_token');
       res.end(JSON.stringify(token ? {
         success: false, error: { code: 10000, message: 'daily file limit exceeded', reason: 'invalid_request', retryable: false }, request_id: 'quota-request',
@@ -51,6 +55,11 @@ test('stdio tools enforce metadata-only uploads and preserve business errors', a
     assert.match(quota.content[0].text, /quota-request/);
     assert.match(quota.content[0].text, /invalid_request/);
     assert.match(quota.content[0].text, /"retryable":\s*false/);
+    const chapters = await client.callTool({name:'get_note_chapters',arguments:{id:'123'}});
+    assert.ok(!chapters.isError);
+    const chapterData = JSON.parse(chapters.content[0].text);
+    assert.deepEqual(chapterData.chapter_timeline, {source:'summary_markdown_rules',items:[{start_ms:1000,title:'Opening'}]});
+    assert.equal(chapterData.timeline, undefined);
   } finally {
     await client.close();
     api.closeAllConnections();

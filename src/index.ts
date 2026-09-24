@@ -178,6 +178,11 @@ const TOOLS: Tool[] = [
     inputSchema: { type: "object" as const, properties: { id: { type: ["string", "number"], description: "笔记 ID，推荐十进制字符串" } }, required: ["id"] },
   },
   {
+    name: "get_note_chapters",
+    description: "读取总结中的独立章节时间线 chapter_timeline；start_ms 为毫秒，保留 source。与录音 moments 和标记分别读取，不能相互替代。",
+    inputSchema: { type: "object" as const, properties: { id: { type: "string", description: "笔记 ID" } }, required: ["id"] },
+  },
+  {
     name: "get_note_quick_note",
     description: "直接读取录音笔记的快捷笔记；没有快捷笔记时明确返回不可用。",
     inputSchema: { type: "object" as const, properties: { id: { type: ["string", "number"], description: "笔记 ID，推荐十进制字符串" } }, required: ["id"] },
@@ -837,6 +842,11 @@ async function handleTool(
       const result = await client.getNote(snowflakeID(input.id, "id"));
       if (!result.note.quick_note) throw new Error("Quick note is not available for this note");
       return { id: result.note.id, title: result.note.title, quick_note: result.note.quick_note };
+    }
+    case "get_note_chapters": {
+      const result = await client.getNote(snowflakeID(input.id, "id"));
+      if (!result.note.chapter_timeline) throw new Error("Chapter timeline is not available for this note");
+      return { id: result.note.id, title: result.note.title, chapter_timeline: result.note.chapter_timeline };
     }
     case "get_note_todos": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
