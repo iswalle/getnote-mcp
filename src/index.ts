@@ -178,6 +178,11 @@ const TOOLS: Tool[] = [
     inputSchema: { type: "object" as const, properties: { id: { type: ["string", "number"], description: "笔记 ID，推荐十进制字符串" } }, required: ["id"] },
   },
   {
+    name: "get_note_chapters",
+    description: "读取总结中的独立章节时间线 chapter_timeline；start_ms 为毫秒，保留 source。与录音 moments 和标记分别读取，不能相互替代。",
+    inputSchema: { type: "object" as const, properties: { id: { type: "string", description: "笔记 ID" } }, required: ["id"] },
+  },
+  {
     name: "get_note_quick_note",
     description: "直接读取录音笔记的快捷笔记；没有快捷笔记时明确返回不可用。",
     inputSchema: { type: "object" as const, properties: { id: { type: ["string", "number"], description: "笔记 ID，推荐十进制字符串" } }, required: ["id"] },
@@ -471,6 +476,36 @@ const TOOLS: Tool[] = [
     },
   },
 
+  {
+    name: "get_note_marks",
+    description: "读取笔记标记（包含文字标记、照片等），与 Timeline 独立，不用时间线替代标记。",
+    inputSchema: { type: "object", properties: { note_id: { type: "string" } }, required: ["note_id"] },
+  },
+  {
+    name: "list_sprouts",
+    description: "按月份读取当前用户发芽报告；发芽不是标记数据。",
+    inputSchema: { type: "object", properties: { month: { type: "string", description: "YYYY-MM" }, since_id: { type: "string", description: "上一页返回的游标，原样传递" }, limit: {type: "integer", minimum: 1, maximum: 20} }, required: ["month"] },
+  },
+  {
+    name: "get_sprout",
+    description: "读取已授权用户发芽报告原文，id 来自 list_sprouts。",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+  },
+  {
+    name: "get_knowledge_file_capabilities",
+    description: "上传前查询当前配置允许的文件扩展名、MIME、大小、页数和独立日限额；不缓存为固定格式列表。",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_knowledge_file_upload_token",
+    description: "获取一次 OSS 文件上传临时凭据。通过本地 getnote upload --token-file <file> --max-size-bytes <能力上限> 直接 PUT 到 OSS，无需再次 CLI 登录。凭据通过受控文件或 stdin 传入，不写命令参数或聊天；不要把文件字节传给云 MCP。",
+    inputSchema: { type: "object", properties: { mime_type: { type: "string", description: "能力接口返回的扩展名，如 HTML" } }, required: ["mime_type"] },
+  },
+  {
+    name: "upload_knowledge_file",
+    description: "OSS 直传成功后将原文件加入知识库，只接收元数据，不接收本地路径或 base64。返回处理中的资源不等于入库成功；用 list_topic_directories 查询同一 ID，直到 SUCCESS 或 FAIL。",
+    inputSchema: { type: "object", additionalProperties: false, properties: { topic_id: { type: "string" }, directory_id: { type: "string" }, file_name: { type: "string" }, file_type: { type: "string" }, md5: { type: "string" }, url: { type: "string" } }, required: ["topic_id", "directory_id", "file_name", "file_type", "md5", "url"] },
+  },
   // ── Image ──
   {
     name: "get_upload_config",
@@ -808,6 +843,11 @@ async function handleTool(
       if (!result.note.quick_note) throw new Error("Quick note is not available for this note");
       return { id: result.note.id, title: result.note.title, quick_note: result.note.quick_note };
     }
+    case "get_note_chapters": {
+      const result = await client.getNote(snowflakeID(input.id, "id"));
+      if (!result.note.chapter_timeline) throw new Error("Chapter timeline is not available for this note");
+      return { id: result.note.id, title: result.note.title, chapter_timeline: result.note.chapter_timeline };
+    }
     case "get_note_todos": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
       return {
@@ -910,6 +950,12 @@ async function handleTool(
     }
 
     // ── Image ──
+    case "get_note_marks": return client.getNoteMarks(String(snowflakeID(input.note_id, "note_id")));
+    case "list_sprouts": return client.listSprouts(z.string().regex(/^\d{4}-\d{2}$/).parse(input.month), z.string().optional().parse(input.since_id), z.number().int().min(1).max(20).optional().parse(input.limit));
+    case "get_sprout": return client.getSprout(z.string().min(1).parse(input.id));
+    case "get_knowledge_file_capabilities": return client.getKnowledgeFileCapabilities();
+    case "get_knowledge_file_upload_token": return client.getKnowledgeFileUploadToken(z.string().min(1).parse(input.mime_type));
+    case "upload_knowledge_file": return client.uploadKnowledgeFile(z.object({ topic_id:z.string().min(1), directory_id:z.string().regex(/^\d+$/), file_name:z.string().min(1), file_type:z.string().min(1), md5:z.string().regex(/^[a-fA-F0-9]{32}$/), url:z.string().url() }).strict().parse(input));
     case "get_upload_config": {
       return client.getUploadConfig();
     }

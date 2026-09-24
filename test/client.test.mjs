@@ -9,6 +9,41 @@ import {
 } from "../dist/client.js";
 import { OPENAPI_MEMBERSHIP_PURCHASE_URL } from "../dist/membership.js";
 
+test("file and distinct mark/sprout methods preserve routes and string IDs", async () => {
+  const received = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      received.push({url:req.url, method:req.method, body:body ? JSON.parse(body):null});
+      res.setHeader('content-type','application/json');
+      res.end(JSON.stringify({success:true,data:{status:'UPLOADING'}}));
+    });
+  });
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try {
+    const client = new GetNoteClient('key','client',`http://127.0.0.1:${server.address().port}`);
+    await client.getNoteMarks('1922071641760757698');
+    await client.listSprouts('2026-09', '1922071641760757698', 2);
+    await client.getSprout('sprout-alias');
+    await client.getKnowledgeFileCapabilities();
+    await client.getKnowledgeFileUploadToken('HTM');
+    const result = await client.uploadKnowledgeFile({topic_id:'alias',directory_id:'9000000000020341',file_name:'x.htm',file_type:'HTM',md5:'a'.repeat(32),url:'https://example.com/x.htm'});
+    assert.deepEqual(received.map(r=>r.url),[
+      '/open/api/v1/resource/note/marks?note_id=1922071641760757698',
+      '/open/api/v1/resource/note/sprouts?month=2026-09&since_id=1922071641760757698&limit=2',
+      '/open/api/v1/resource/note/sprout?id=sprout-alias',
+      '/open/api/v1/resource/knowledge/file/capabilities',
+      '/open/api/v1/resource/knowledge/file/upload_token?mime_type=HTM',
+      '/open/api/v1/resource/knowledge/file/upload',
+    ]);
+    assert.equal(received[5].body.directory_id,'9000000000020341');
+    assert.equal(received[5].method,'POST');
+    assert.equal(result.status,'UPLOADING');
+    assert.equal('file_base64' in received[5].body,false);
+  } finally { server.close(); }
+});
+
 test("membership errors use the MCP-specific OpenAPI purchase channel", () => {
   assert.equal(
     OPENAPI_MEMBERSHIP_PURCHASE_URL,

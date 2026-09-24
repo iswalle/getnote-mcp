@@ -12,6 +12,13 @@ MCP (Model Context Protocol) server for [得到大脑（Get笔记）](https://bi
 
 ## 使用场景
 
+### 1.8.0 新能力
+
+- 标记 `get_note_marks`、发芽 `list_sprouts` / `get_sprout`、章节 `get_note_chapters` 与录音 `get_note_timeline` 独立读取。
+- 文件上传前调用 `get_knowledge_file_capabilities` 获取实时格式、大小、页数与额度限制，不维护客户端白名单。
+- `get_knowledge_file_upload_token` 获取临时凭据，本机使用 CLI 1.6.0+ 的 `getnote upload <文件> --token-file <受控文件> --max-size-bytes <能力上限>` 直传 OSS，无需 CLI 再登录。
+- `upload_knowledge_file` 只提交文件元数据；用 `list_topic_directories` 确认同一资源达到 `SUCCESS`，不能把 OSS 上传完成当作解析完成。凭据只经 stdin 或受控文件传递，不出现在聊天或命令参数中。
+
 - 用户说「帮我记一下」「保存到笔记」「记录下来」→ `save_note`
 - 用户说「改一下这个笔记」「更新笔记内容」→ `update_note`
 - 用户说「查一下我的笔记」「找找之前的笔记」→ `list_notes`

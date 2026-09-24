@@ -48,6 +48,24 @@ export class GetNoteAPIError extends Error {
 }
 
 export class GetNoteClient {
+  async getNoteMarks(note_id: string) {
+    return this.request<unknown>("GET", "/resource/note/marks", { note_id });
+  }
+  async listSprouts(month: string, since_id?: string, limit?: number) {
+    return this.request<unknown>("GET", "/resource/note/sprouts", { month, since_id, limit });
+  }
+  async getSprout(id: string) {
+    return this.request<unknown>("GET", "/resource/note/sprout", { id });
+  }
+  async getKnowledgeFileCapabilities() {
+    return this.request<unknown>("GET", "/resource/knowledge/file/capabilities");
+  }
+  async getKnowledgeFileUploadToken(mime_type: string) {
+    return this.request<unknown>("GET", "/resource/knowledge/file/upload_token", { mime_type });
+  }
+  async uploadKnowledgeFile(data: { topic_id: string; directory_id: string; file_name: string; file_type: string; md5: string; url: string }) {
+    return this.request<unknown>("POST", "/resource/knowledge/file/upload", undefined, data);
+  }
   private http: AxiosInstance;
 
   constructor(apiKey: string, clientId: string, baseURL?: string) {
@@ -480,9 +498,14 @@ export interface NoteDetail extends NoteItem {
     content?: string;
   };
   quick_note?: string;
+  chapter_timeline?: {
+    source: string;
+    items: { start_ms: number; title: string }[];
+  };
   timeline?: {
     version: number;
-    moments: { start_ms: number; end_ms: number; text: string }[];
+    schema_version?: number;
+    moments: { id?: string; type?: string; action_time?: number; content?: string; summary?: string; files?: { id: string; ext: string; name: string; url: string; size: number }[]; start_ms: number; end_ms: number; text: string }[];
     resources: { type: string; url: string; action_time: number }[];
   };
   meeting_todos?: {
