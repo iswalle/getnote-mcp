@@ -900,6 +900,7 @@ export interface UpdateNoteResp {
 
 export interface RecallResultItem {
   note_id?: string;
+  resource_id?: string;
   note_type: "NOTE" | "FILE" | "BLOGGER" | "LIVE" | "URL" | "DEDAO";
   title: string;
   content: string;
@@ -919,4 +920,5 @@ export interface RecallResp extends DiscoveryResponse {
   is_exhaustive?: boolean;
   returned_count?: number;
   distinct_note_count?: number;
+  partial?: boolean;
 }
