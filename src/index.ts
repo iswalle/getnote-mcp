@@ -140,7 +140,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "get_note",
-    description: "获取指定笔记的详细内容，包括正文、标签、附件、音频转录、网页链接等。\n\n**字段语义说明（AI Agent 重要参考）**：\n`content` 通常是 AI 总结，不一定是原文。不同类型笔记的原文字段如下：\n- 普通文字笔记（plain_text）：原文 = `note.content`\n- 链接/网页笔记（link）：原文 = `note.web_page.content`，AI 总结 = `note.content`\n- 录音笔记（audio/local_audio 等）：转写原文 = `note.audio.original`，AI 总结 = `note.content`\n\n用户要求'读原文'时，先看 `note.note_type`，再按上述对应关系取字段。",
+    description: "获取指定笔记的详细内容，包括正文、标签、附件、音频转录、网页链接等。\n\n**字段语义说明（AI Agent 重要参考）**：\n`content` 通常是 AI 总结，不一定是原文。不同类型笔记的原文字段如下：\n- 引用笔记（ref）：原文 = `note.ref_content`，`note.content` 是个人评论\n- 普通文字笔记（plain_text）：原文 = `note.content`\n- 链接/网页笔记（link）：原文 = `note.web_page.content`，AI 总结 = `note.content`\n- 录音笔记（audio/local_audio）：转写原文 = `note.audio.original`，AI 总结 = `note.content`\n\n用户要求'读原文'时，先看 `note.note_type`，再按上述对应关系取字段。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -159,7 +159,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "get_note_original",
-    description: "直接读取笔记原文。链接笔记返回网页原文，录音笔记返回转写原文，文字笔记返回正文；不要把 AI 摘要冒充原文。",
+    description: "直接读取笔记原文。引用笔记返回 ref_content，链接笔记返回网页原文，录音笔记返回转写原文，文字笔记返回正文；无原文或不支持的类型会报错。",
     inputSchema: { type: "object" as const, properties: { id: { type: ["string", "number"], description: "笔记 ID，推荐十进制字符串" } }, required: ["id"] },
   },
   {
@@ -819,9 +819,18 @@ async function handleTool(
     case "get_note_original": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
       const note = result.note;
-      const original = note.web_page?.content || note.audio?.original || note.content;
+      let original: string | undefined;
+      let original_source: string;
+      switch (note.note_type) {
+        case "ref": original = note.ref_content; original_source = "ref_content"; break;
+        case "plain_text": original = note.content; original_source = "content"; break;
+        case "link": original = note.web_page?.content; original_source = "web_page.content"; break;
+        case "audio":
+        case "local_audio": original = note.audio?.original; original_source = "audio.original"; break;
+        default: throw new Error(`Unsupported note type for original content: ${note.note_type}`);
+      }
       if (!original) throw new Error("Original content is not available for this note");
-      return { id: note.id, note_type: note.note_type, title: note.title, original };
+      return { id: note.id, note_type: note.note_type, title: note.title, original, original_source };
     }
     case "get_note_transcript": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
