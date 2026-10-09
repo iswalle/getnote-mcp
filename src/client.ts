@@ -167,8 +167,8 @@ export class GetNoteClient {
     return this.request<ListNotesResp>("GET", "/resource/note/list", { ...params });
   }
 
-  async getNote(id: string | number, image_quality?: string, view?: string) {
-    return this.request<GetNoteResp>("GET", "/resource/note/detail", { id, image_quality, view });
+  async getNote(id: string | number, image_quality?: string) {
+    return this.request<GetNoteResp>("GET", "/resource/note/detail", { id, image_quality });
   }
 
   async saveNote(body: SaveNoteReq) {

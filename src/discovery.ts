@@ -2,10 +2,9 @@ import { z } from "zod";
 
 const text = z.string().trim().min(1);
 const integer = z.number().int().positive();
-const view = z.enum(["summary", "full"]);
 const times = ["created_from", "created_to", "edited_from", "edited_to", "record_updated_from", "record_updated_to"] as const;
 export const noteSelectors = {
-  view: view.optional(), source: text.optional(), note_type: text.optional(),
+  source: text.optional(), note_type: text.optional(),
   reference_resource_type: text.optional(), reference_resource_id: text.optional(),
   reference_article_url: z.string().url().refine(v => /^https?:\/\//.test(v)).optional(),
   topic_id: text.optional(), page_size: integer.max(100).optional(),
@@ -45,8 +44,8 @@ export function discoveryContract(kind: DiscoveryKind, input: Record<string, unk
   let params: Record<string, unknown>;
   const filters: Record<string, string> = {};
   if (kind === "detail") {
-    params = z.object({ id: z.union([text, z.number().int().safe()]), image_quality: z.enum(["original"]).optional(), view }).strict().parse(values);
-    return { params, filters, capabilities: ["note.reference.v1", ...(params.view === "summary" ? ["note.summary.v1"] : [])], kind };
+    params = z.object({ id: z.union([text, z.number().int().safe()]), image_quality: z.enum(["original"]).optional() }).strict().parse(values);
+    return { params, filters, capabilities: ["note.reference.v1"], kind };
   }
   if (kind === "topics") {
     params = { scope: "DEFAULT", page: 1, page_size: 20, ...lookupSchema.parse(values) };
@@ -65,12 +64,11 @@ export function discoveryContract(kind: DiscoveryKind, input: Record<string, unk
     for (const key of times) if (typeof params[key] === "string") { const t = timestamp(params[key] as string); params[key] = t.text; epochs[key] = t.epoch; }
     for (const prefix of ["created", "edited", "record_updated"]) if (epochs[prefix + "_from"] !== undefined && epochs[prefix + "_to"] !== undefined && epochs[prefix + "_from"] >= epochs[prefix + "_to"]) throw new Error("time interval must have from < to");
   }
-  for (const [key, value] of Object.entries(params)) if (!["view", "cursor", "page", "page_size"].includes(key)) filters[key] = String(value);
+  for (const [key, value] of Object.entries(params)) if (!["cursor", "page", "page_size"].includes(key)) filters[key] = String(value);
   const capabilities = ["pagination.v1"];
   if (kind === "topics") capabilities.push("knowledge.lookup.v1");
   else if (Object.keys(filters).length) capabilities.push("note.filters.v1");
-  if (Object.keys(filters).some(k => k.startsWith("reference_")) || params.view === "summary") capabilities.push("note.reference.v1");
-  if (params.view === "summary") capabilities.push("note.summary.v1");
+  capabilities.push("note.reference.v1");
   return { params, filters, capabilities, kind };
 }
 

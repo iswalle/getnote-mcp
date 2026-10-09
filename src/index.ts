@@ -123,7 +123,6 @@ function snowflakeID(value: unknown, field: string): string | number {
 
 const noteDiscoveryProperties = {
   page: { type: "integer", minimum: 1, description: "知识库内可用页码；与 cursor 互斥" },
-  view: { type: "string", enum: ["summary", "full"], description: "先用 summary 定位，按需 full 读正文；summary 省略大字段而非返回空正文" },
   source: { type: "string", description: "来源平台精确筛选，如 dedao" },
   note_type: { type: "string", description: "笔记真实类型精确筛选，如 ref" },
   reference_resource_type: { type: "string", description: "引用资源类型，如 ebook、course_article、audio_book" },
@@ -145,7 +144,7 @@ const TOOLS: Tool[] = [
   {
     name: "list_notes",
     description:
-      "按来源、引用资源或知识库查找笔记，建议 view=summary。新查询须核对 meta.capabilities、applied_filters，按 pagination.next_cursor 翻页到 has_more=false 才能说全量完成。total_count=null 表示未知，不能用本页条数代替全库总数。",
+      "按来源、引用资源或知识库查找笔记。列表只返回定位信息；需要正文和完整元数据时调用 get_note。新查询须核对 meta.capabilities、applied_filters，按 pagination.next_cursor 翻页到 has_more=false 才能说全量完成。total_count=null 表示未知，不能用本页条数代替全库总数。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -164,7 +163,6 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        view: noteDiscoveryProperties.view,
         id: {
           type: ["string", "number"],
           description: "笔记 ID。必须优先传十进制字符串；仅为兼容旧调用接受 JavaScript 安全整数",
@@ -408,7 +406,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "list_topic_notes",
-    description: "列出知识库内可访问的笔记，支持来源、引用资源、时间筛选。建议 view=summary，按 pagination.next_page 翻页；去重 ID，重复游标/页码、无进展或中途失败不能声称全量完成。",
+    description: "列出知识库内可访问的笔记，支持来源、引用资源、时间筛选。列表只返回定位信息；需要正文和完整元数据时调用 get_note。按 pagination.next_page 翻页；去重 ID，重复游标/页码、无进展或中途失败不能声称全量完成。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -838,7 +836,7 @@ async function handleTool(
       return client.listNotes({ ...input, cursor: cursor === "0" ? undefined : cursor });
     }
     case "get_note": {
-      return client.getNote(snowflakeID(input.id, "id"), input.image_quality as string | undefined, input.view as string | undefined);
+      return client.getNote(snowflakeID(input.id, "id"), input.image_quality as string | undefined);
     }
     case "get_note_original": {
       const result = await client.getNote(snowflakeID(input.id, "id"));

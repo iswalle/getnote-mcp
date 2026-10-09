@@ -10,10 +10,10 @@ test('discovery tools forward selectors and reject false capability success', as
  let mode='supported';let received;
  const api=http.createServer((req,res)=>{
   const url=new URL(req.url,'http://localhost');received=Object.fromEntries(url.searchParams);
-  const filters=Object.fromEntries([...url.searchParams].filter(([key])=>!['page','page_size','cursor','view','id','image_quality'].includes(key)));
+  const filters=Object.fromEntries([...url.searchParams].filter(([key])=>!['page','page_size','cursor','id','image_quality'].includes(key)));
   if(mode==='ignored')delete filters.note_type;
   res.setHeader('content-type','application/json');
-  res.end(JSON.stringify({success:true,meta:{capabilities:mode==='old'?[]:['note.filters.v1','pagination.v1','note.reference.v1','note.summary.v1','knowledge.lookup.v1']},data:{notes:[],topics:[],note:{note_id:'9007199254740993',title:'',content_state:{content:'omitted',ref_content:'omitted'}},pagination:{mode:url.searchParams.has('page')?'page':'cursor',page:Number(url.searchParams.get('page')||1),page_size:Number(url.searchParams.get('page_size')||20),returned_count:0,total_count:null,has_more:false,next_cursor:null,next_page:null},applied_filters:filters}}));
+  res.end(JSON.stringify({success:true,meta:{capabilities:mode==='old'?[]:['note.filters.v1','pagination.v1','note.reference.v1','knowledge.lookup.v1']},data:{notes:[],topics:[],note:{note_id:'9007199254740993',title:'',content_state:{content:'omitted',ref_content:'omitted'}},pagination:{mode:url.searchParams.has('page')?'page':'cursor',page:Number(url.searchParams.get('page')||1),page_size:Number(url.searchParams.get('page_size')||20),returned_count:0,total_count:null,has_more:false,next_cursor:null,next_page:null},applied_filters:filters}}));
  });
  await new Promise(resolve=>api.listen(0,'127.0.0.1',resolve));
  const client=new Client({name:'discovery-contract',version:'1'});
@@ -22,10 +22,10 @@ test('discovery tools forward selectors and reject false capability success', as
   await client.connect(transport);
   const {tools}=await client.listTools();
   const schemas=Object.fromEntries(tools.map(t=>[t.name,t.inputSchema.properties]));
-  for(const key of ['view','source','note_type','reference_resource_type','reference_resource_id','reference_article_url','topic_id','created_from','created_to','edited_from','edited_to','record_updated_from','record_updated_to','page_size'])assert.ok(schemas.list_notes[key],`missing list_notes schema: ${key}`);
+  for(const key of ['source','note_type','reference_resource_type','reference_resource_id','reference_article_url','topic_id','created_from','created_to','edited_from','edited_to','record_updated_from','record_updated_to','page_size'])assert.ok(schemas.list_notes[key],`missing list_notes schema: ${key}`);
   for(const key of ['query','author','book_id','page_size'])assert.ok(schemas.list_topics[key],`missing lookup schema: ${key}`);
-  const selectors={source:'dedao',note_type:'ref',reference_resource_type:'course_article',reference_resource_id:'9007199254740993',reference_article_url:'https://example.invalid/a?x=1#p',created_from:'2026-10-09T03:00:00Z',view:'summary',page_size:7};
-  for(const [name,args] of [['list_notes',selectors],['list_topic_notes',{...selectors,topic_id:'topic-x',page:2}],['list_topics',{scope:'BOOKSPACE',query:'书名',author:'作者',book_id:'book-x',page_size:7}],['list_subscribe_topics',{scope:'BOOKSPACE',query:'书名',page_size:7}],['get_note',{id:'9007199254740993',view:'summary'}]]) {
+  const selectors={source:'dedao',note_type:'ref',reference_resource_type:'course_article',reference_resource_id:'9007199254740993',reference_article_url:'https://example.invalid/a?x=1#p',created_from:'2026-10-09T03:00:00Z',page_size:7};
+  for(const [name,args] of [['list_notes',selectors],['list_topic_notes',{...selectors,topic_id:'topic-x',page:2}],['list_topics',{scope:'BOOKSPACE',query:'书名',author:'作者',book_id:'book-x',page_size:7}],['list_subscribe_topics',{scope:'BOOKSPACE',query:'书名',page_size:7}],['get_note',{id:'9007199254740993'}]]) {
    const result=await client.callTool({name,arguments:args});assert.ok(!result.isError,result.content[0].text);
    for(const [key,value]of Object.entries(args))assert.equal(received[key],String(value),`${name}.${key}`);
    assert.ok(JSON.parse(result.content[0].text).meta.capabilities.includes('note.reference.v1'));

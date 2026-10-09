@@ -11,8 +11,8 @@ test('discovery normalizes lookup and nanosecond intervals without altering sour
 });
 
 test('new contract fails closed for missing capability, filters, counts and continuation',()=>{
- const c=discoveryContract('notes',{topic_id:'topic-x',view:'summary'});
- const base={meta:{capabilities:['note.filters.v1','pagination.v1','note.reference.v1','note.summary.v1']},data:{notes:[],applied_filters:{topic_id:'topic-x'},pagination:{mode:'cursor',page:null,page_size:20,returned_count:0,total_count:null,has_more:false,next_cursor:null,next_page:null}}};
+ const c=discoveryContract('notes',{topic_id:'topic-x'});
+ const base={meta:{capabilities:['note.filters.v1','pagination.v1','note.reference.v1']},data:{notes:[],applied_filters:{topic_id:'topic-x'},pagination:{mode:'cursor',page:null,page_size:20,returned_count:0,total_count:null,has_more:false,next_cursor:null,next_page:null}}};
  verifyDiscovery(base,c);
  const changes=[x=>delete x.meta,x=>delete x.data.applied_filters,x=>x.data.applied_filters.topic_id='other',x=>x.data.pagination.returned_count=1,x=>delete x.data.pagination.total_count,x=>x.data.pagination.has_more=true,x=>x.data.pagination.next_cursor='stale',x=>x.meta.capabilities=x.meta.capabilities.filter(v=>v!=='note.reference.v1')];
  for(const change of changes){const x=structuredClone(base);change(x);assert.throws(()=>verifyDiscovery(x,c));}
