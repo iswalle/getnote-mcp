@@ -13,6 +13,7 @@ test('get_note_original uses only the source selected by note_type', async () =>
     { note_type: 'plain_text', content: 'typed text', ref_content: 'other', want: 'typed text', source: 'content' },
     { note_type: 'link', content: 'AI summary', web_page: {url:'https://example.test',content:'web article'}, want: 'web article', source: 'web_page.content' },
     { note_type: 'audio', content: 'AI summary', audio: {original:'raw transcript'}, want: 'raw transcript', source: 'audio.original' },
+    { note_type: 'local_audio', content: 'AI summary', audio: {original:'local raw transcript'}, want: 'local raw transcript', source: 'audio.original' },
     { note_type: 'unknown', content: 'AI summary', error: true },
   ];
   let current = cases[0];

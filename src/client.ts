@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
+import { discoveryContract, verifyDiscovery, NoteDiscoveryOptions, LookupOptions, DiscoveryKind } from "./discovery";
 
 const DEFAULT_BASE_URL = "https://openapi.biji.com/open/api/v1";
 
@@ -94,10 +95,14 @@ export class GetNoteClient {
     params?: Record<string, unknown>,
     data?: unknown
   ): Promise<T> {
+    const kinds: Record<string, DiscoveryKind> = { "/resource/note/list": "notes", "/resource/note/detail": "detail", "/resource/knowledge/notes": "topicNotes", "/resource/knowledge/list": "topics", "/resource/knowledge/subscribe/list": "topics" };
+    const contract = method === "GET" && kinds[path] ? discoveryContract(kinds[path], params || {}) : undefined;
+    if (contract) params = contract.params;
     try {
       const res = await this.http.request<{
         success: boolean;
         data: T;
+        meta?: { capabilities?: string[]; [key: string]: unknown };
         error?: APIErrorBody;
         request_id?: string;
       }>({
@@ -122,6 +127,11 @@ export class GetNoteClient {
         );
       }
 
+      if (contract) verifyDiscovery(body, contract);
+      // Keep the verified envelope capabilities visible to the Agent.
+      if (body.meta?.capabilities && typeof body.data === "object" && body.data !== null && !Array.isArray(body.data)) {
+        return { ...body.data, meta: body.meta };
+      }
       return body.data;
     } catch (err) {
       if (err instanceof GetNoteAPIError) throw err;
@@ -153,14 +163,12 @@ export class GetNoteClient {
 
   // ─── Notes ───────────────────────────────────────────────────────────────
 
-  async listNotes(params: { cursor?: string }) {
-    return this.request<ListNotesResp>("GET", "/resource/note/list", {
-      ...(params.cursor ? { cursor: params.cursor } : {}),
-    });
+  async listNotes(params: NoteDiscoveryOptions) {
+    return this.request<ListNotesResp>("GET", "/resource/note/list", { ...params });
   }
 
-  async getNote(id: string | number, image_quality?: string) {
-    return this.request<GetNoteResp>("GET", "/resource/note/detail", { id, image_quality });
+  async getNote(id: string | number, image_quality?: string, view?: string) {
+    return this.request<GetNoteResp>("GET", "/resource/note/detail", { id, image_quality, view });
   }
 
   async saveNote(body: SaveNoteReq) {
@@ -289,9 +297,9 @@ export class GetNoteClient {
 
   // ─── Knowledge / Topics ─────────────────────────────────────────────────
 
-  async listTopics(params?: { page?: number; scope?: KnowledgeScope }) {
+  async listTopics(params?: LookupOptions) {
     return this.request<ListTopicsResp>("GET", "/resource/knowledge/list", {
-      page: params?.page,
+      ...params,
       scope: params?.scope ?? "DEFAULT",
     });
   }
@@ -305,11 +313,11 @@ export class GetNoteClient {
     );
   }
 
-  async listTopicNotes(params: { topic_id: string; page?: number }) {
+  async listTopicNotes(params: NoteDiscoveryOptions & { topic_id: string }) {
     return this.request<ListTopicNotesResp>(
       "GET",
       "/resource/knowledge/notes",
-      { topic_id: params.topic_id, page: params.page }
+      { ...params }
     );
   }
 
@@ -422,11 +430,11 @@ export class GetNoteClient {
     );
   }
 
-  async listSubscribeTopics(params: { page?: number; scope?: KnowledgeScope }) {
+  async listSubscribeTopics(params: LookupOptions) {
     return this.request<ListSubscribeTopicsResp>(
       "GET",
       "/resource/knowledge/subscribe/list",
-      { page: params.page, scope: params.scope ?? "DEFAULT" }
+      { ...params, scope: params.scope ?? "DEFAULT" }
     );
   }
 
@@ -455,21 +463,44 @@ export interface TagInfo {
   type: "ai" | "manual" | "system";
 }
 
-export interface NoteItem {
+export interface NoteReference {
+  source: string; resource_type: string; ptype: number; resource_id?: string;
+  title?: string; author?: string; url?: string; original_note_id?: string;
+  is_source_private: boolean; book_id?: string;
+  article?: { title?: string; url?: string };
+  location?: { chapter_id?: string; chapter_name?: string; page?: number; start_offset?: number; end_offset?: number };
+}
+export interface BookInfo { book_id: string; title: string; author: string; platform?: string; source?: string; isbn?: string }
+export interface DiscoveryMetadata {
+  display_title?: string;
+  reference?: NoteReference;
+  timestamps?: { created_at?: string; edited_at?: string; record_updated_at?: string };
+  preview?: { text: string; source: string; truncated: boolean };
+  content_state?: { content: string; ref_content: string };
+  metadata_state?: { reference: string; topics: string };
+}
+export interface DiscoveryResponse {
+  meta?: { capabilities: string[]; timestamp?: number };
+  pagination?: { mode: "page" | "cursor"; page: number | null; page_size: number; returned_count: number; total_count: number | null; has_more: boolean; next_page: number | null; next_cursor: string | null };
+  applied_filters?: Record<string, string>;
+  warnings?: unknown[];
+}
+
+export interface NoteItem extends DiscoveryMetadata {
   /**
    * Note ID. Returned as string because the actual values exceed
    * Number.MAX_SAFE_INTEGER. See parseJsonPreservingLargeIntegerStrings.
    */
   id: string;
   title: string;
-  content: string;
+  content?: string;
   ref_content?: string;
   note_type: string;
   source: string;
   tags: TagInfo[];
   parent_id?: string;
   children_count?: number;
-  topics?: { id: string; name: string }[];
+  topics?: { id: string; name: string; scope?: string; book_info?: BookInfo }[];
   is_child_note?: boolean;
   created_at: string;
   updated_at: string;
@@ -516,7 +547,7 @@ export interface NoteDetail extends NoteItem {
   version?: number;
 }
 
-export interface ListNotesResp {
+export interface ListNotesResp extends DiscoveryResponse {
   notes: NoteItem[];
   has_more: boolean;
   /**
@@ -529,7 +560,7 @@ export interface ListNotesResp {
   total: number;
 }
 
-export interface GetNoteResp {
+export interface GetNoteResp extends DiscoveryResponse {
   note: NoteDetail;
 }
 
@@ -644,9 +675,11 @@ export interface KnowledgeTopic {
   stats?: KnowledgeTopicStats;
   created_at?: string;
   updated_at?: string;
+  topic_id?: string;
+  book_info?: BookInfo;
 }
 
-export interface ListTopicsResp {
+export interface ListTopicsResp extends DiscoveryResponse {
   topics: KnowledgeTopic[];
   has_more: boolean;
   total: number;
@@ -660,10 +693,12 @@ export interface CreateTopicResp {
   scope?: string;
 }
 
-export interface TopicNoteItem {
+export interface TopicNoteItem extends DiscoveryMetadata {
   note_id: string;
   title: string;
-  content: string;
+  content?: string;
+  ref_content?: string;
+  note_url?: string;
   note_type: string;
   tags: string[];
   is_ai_generated?: boolean;
@@ -671,7 +706,7 @@ export interface TopicNoteItem {
   edit_time: string;
 }
 
-export interface ListTopicNotesResp {
+export interface ListTopicNotesResp extends DiscoveryResponse {
   notes: TopicNoteItem[];
   has_more: boolean;
   total: number;
@@ -830,7 +865,7 @@ export interface ShareNoteResp {
 
 // ─── List Subscribe Topics Types ──────────────────────────────────────────────
 
-export interface ListSubscribeTopicsResp {
+export interface ListSubscribeTopicsResp extends DiscoveryResponse {
   topics: KnowledgeTopic[];
   has_more: boolean;
   total: number;
@@ -864,14 +899,24 @@ export interface UpdateNoteResp {
 // ─── Recall / Search Types ───────────────────────────────────────────────────
 
 export interface RecallResultItem {
-  note_id: string;
+  note_id?: string;
   note_type: "NOTE" | "FILE" | "BLOGGER" | "LIVE" | "URL" | "DEDAO";
   title: string;
   content: string;
   created_at: string;
   page_no?: number;
+  resource_type?: string;
+  note?: NoteItem;
+  note_url?: string;
+  snippet?: string;
+  snippet_source?: string;
+  score?: number | null;
 }
 
-export interface RecallResp {
+export interface RecallResp extends DiscoveryResponse {
   results: RecallResultItem[];
+  result_mode?: string;
+  is_exhaustive?: boolean;
+  returned_count?: number;
+  distinct_note_count?: number;
 }
