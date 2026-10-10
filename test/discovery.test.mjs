@@ -37,3 +37,17 @@ test('discovery tools forward selectors and reject false capability success', as
   mode='supported';const bad=await client.callTool({name:'list_notes',arguments:{page_size:0}});assert.equal(bad.isError,true,'zero page_size invalid');
  }finally{await client.close();api.closeAllConnections();await new Promise(resolve=>api.close(resolve));}
 });
+
+// Knowledge lookup does not return note references and must not require that capability.
+test('knowledge lookup accepts the deployed knowledge capability contract', async () => {
+ const { discoveryContract, verifyDiscovery } = await import('../dist/discovery.js');
+ const contract = discoveryContract('topics', { scope: 'BOOKSPACE', page_size: 2 });
+ assert.deepEqual(contract.capabilities, ['pagination.v1', 'knowledge.lookup.v1']);
+ assert.doesNotThrow(() => verifyDiscovery({
+  meta: { capabilities: ['knowledge.lookup.v1', 'pagination.v1'] },
+  data: { topics: [], applied_filters: { scope: 'BOOKSPACE' }, pagination: {
+   mode: 'page', page: 1, page_size: 2, returned_count: 0, total_count: 0,
+   has_more: false, next_page: null, next_cursor: null
+  } }
+ }, contract));
+});

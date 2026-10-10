@@ -68,7 +68,7 @@ export function discoveryContract(kind: DiscoveryKind, input: Record<string, unk
   const capabilities = ["pagination.v1"];
   if (kind === "topics") capabilities.push("knowledge.lookup.v1");
   else if (Object.keys(filters).length) capabilities.push("note.filters.v1");
-  capabilities.push("note.reference.v1");
+  if (kind !== "topics") capabilities.push("note.reference.v1");
   return { params, filters, capabilities, kind };
 }
 
