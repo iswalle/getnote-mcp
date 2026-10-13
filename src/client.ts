@@ -481,7 +481,7 @@ export interface DiscoveryMetadata {
 export interface DiscoveryResponse {
   meta?: { capabilities: string[]; timestamp?: number };
   pagination?: { mode: "page" | "cursor"; page: number | null; page_size: number; returned_count: number; total_count: number | null; has_more: boolean; next_page: number | null; next_cursor: string | null };
-  applied_filters?: Record<string, string>;
+  applied_filters?: Record<string, unknown>;
   warnings?: unknown[];
 }
 

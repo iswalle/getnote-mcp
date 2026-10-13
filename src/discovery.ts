@@ -78,7 +78,9 @@ export function verifyDiscovery(body: unknown, contract: DiscoveryContract): voi
   for (const cap of contract.capabilities) if (!envelope.data.meta.capabilities.includes(cap)) throw new Error(`server does not support ${cap}; unfiltered results not accepted`);
   if (contract.kind === "detail") return;
   const data = envelope.data.data;
-  const applied = z.record(z.string()).safeParse(data.applied_filters);
+  // Responses also contain typed flags such as exclude_mine; only requested
+  // string selectors must match the contract, without coercion.
+  const applied = z.record(z.unknown()).safeParse(data.applied_filters);
   if (!applied.success) throw new Error("server did not return applied_filters");
   for (const [key, value] of Object.entries(contract.filters)) if (applied.data[key] !== value) throw new Error(`server did not apply ${key}`);
   const p = z.object({ mode: z.enum(["page", "cursor"]), page: integer.nullable(), page_size: integer.max(100), returned_count: z.number().int().nonnegative(), total_count: z.number().int().nonnegative().nullable(), has_more: z.boolean(), next_page: integer.nullable(), next_cursor: z.string().min(1).nullable() }).parse(data.pagination);
