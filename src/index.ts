@@ -121,15 +121,34 @@ function snowflakeID(value: unknown, field: string): string | number {
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────
 
+const noteDiscoveryProperties = {
+  page: { type: "integer", minimum: 1, description: "知识库内可用页码；与 cursor 互斥" },
+  source: { type: "string", description: "来源平台精确筛选，如 dedao" },
+  note_type: { type: "string", description: "笔记真实类型精确筛选，如 ref" },
+  reference_resource_type: { type: "string", description: "引用资源类型，如 ebook、course_article、audio_book" },
+  reference_resource_id: { type: "string", description: "引用资源 ID，必须字符串；同时传 source 和 reference_resource_type" },
+  reference_article_url: { type: "string", description: "文章 URL 精确筛选，保留 query 和 fragment" },
+  topic_id: { type: "string", description: "知识库 ID，限定授权范围" },
+  page_size: { type: "integer", minimum: 1, maximum: 100, description: "每页 1–100 条，默认 20" },
+  ...Object.fromEntries(["created_from", "created_to", "edited_from", "edited_to", "record_updated_from", "record_updated_to"].map(key => [key, { type: "string", description: "RFC3339 带时区，from 包含、to 不包含；三种时间轴独立" }])),
+};
+const knowledgeLookupProperties = {
+  query: { type: "string", description: "按知识库名/书名定位；多候选须核对书名、作者和 book_id" },
+  author: { type: "string", description: "书籍作者，限 BOOKSPACE" },
+  book_id: { type: "string", description: "书籍 ID 字符串，限 BOOKSPACE" },
+  page_size: noteDiscoveryProperties.page_size,
+};
+
 const TOOLS: Tool[] = [
   // ── Notes ──
   {
     name: "list_notes",
     description:
-      "获取笔记列表（每次固定返回 20 条，服务端不支持 limit 参数）。用游标翻页：首次请求不传 cursor；后续把上一次响应返回的 cursor 字段原样传入，直到 has_more 为 false。响应里的 total 是全库笔记总数，不是本页条数。",
+      "按来源、引用资源或知识库查找笔记。列表只返回定位信息；需要正文和完整元数据时调用 get_note。新查询须核对 meta.capabilities、applied_filters，按 pagination.next_cursor 翻页到 has_more=false 才能说全量完成。total_count=null 表示未知，不能用本页条数代替全库总数。",
     inputSchema: {
       type: "object" as const,
       properties: {
+        ...noteDiscoveryProperties,
         cursor: {
           type: "string",
           description: "翻页游标。首次不传；后续将上一次响应的 cursor 字段原样传入即可，无需任何转换。",
@@ -140,7 +159,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "get_note",
-    description: "获取指定笔记的详细内容，包括正文、标签、附件、音频转录、网页链接等。\n\n**字段语义说明（AI Agent 重要参考）**：\n`content` 通常是 AI 总结，不一定是原文。不同类型笔记的原文字段如下：\n- 普通文字笔记（plain_text）：原文 = `note.content`\n- 链接/网页笔记（link）：原文 = `note.web_page.content`，AI 总结 = `note.content`\n- 录音笔记（audio/local_audio 等）：转写原文 = `note.audio.original`，AI 总结 = `note.content`\n\n用户要求'读原文'时，先看 `note.note_type`，再按上述对应关系取字段。",
+    description: "获取指定笔记的详细内容，包括正文、标签、附件、音频转录、网页链接等。\n\n**字段语义说明（AI Agent 重要参考）**：\n`content` 通常是 AI 总结，不一定是原文。不同类型笔记的原文字段如下：\n- 引用笔记（ref）：原文 = `note.ref_content`，`note.content` 是个人评论\n- 普通文字笔记（plain_text）：原文 = `note.content`\n- 链接/网页笔记（link）：原文 = `note.web_page.content`，AI 总结 = `note.content`\n- 录音笔记（audio/local_audio）：转写原文 = `note.audio.original`，AI 总结 = `note.content`\n\n用户要求'读原文'时，先看 `note.note_type`，再按上述对应关系取字段。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -159,7 +178,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "get_note_original",
-    description: "直接读取笔记原文。链接笔记返回网页原文，录音笔记返回转写原文，文字笔记返回正文；不要把 AI 摘要冒充原文。",
+    description: "直接读取笔记原文。引用笔记返回 ref_content，链接笔记返回网页原文，录音笔记返回转写原文，文字笔记返回正文；无原文或不支持的类型会报错。",
     inputSchema: { type: "object" as const, properties: { id: { type: ["string", "number"], description: "笔记 ID，推荐十进制字符串" } }, required: ["id"] },
   },
   {
@@ -347,6 +366,7 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: "object" as const,
       properties: {
+        ...knowledgeLookupProperties,
         page: {
           type: "number",
           description: "页码，从 1 开始（默认 1）",
@@ -386,10 +406,11 @@ const TOOLS: Tool[] = [
   },
   {
     name: "list_topic_notes",
-    description: "获取指定知识库内的笔记列表（每页 20 条）。\n\n**AI Agent 提示**：列表返回的 `content` 字段可能较长且通常为 AI 总结。如需先获取标题和类型再按需读详情，可用此接口获取 `note_id` 列表，再对感兴趣的条目逐一调用 `get_note`。",
+    description: "列出知识库内可访问的笔记，支持来源、引用资源、时间筛选。列表只返回定位信息；需要正文和完整元数据时调用 get_note。按 pagination.next_page 翻页；去重 ID，重复游标/页码、无进展或中途失败不能声称全量完成。",
     inputSchema: {
       type: "object" as const,
       properties: {
+        ...noteDiscoveryProperties,
         topic_id: {
           type: "string",
           description: "知识库 ID",
@@ -724,6 +745,7 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: "object" as const,
       properties: {
+        ...knowledgeLookupProperties,
         page: {
           type: "number",
           description: "页码，从 1 开始，默认 1",
@@ -811,7 +833,7 @@ async function handleTool(
     // ── Notes ──
     case "list_notes": {
       const cursor = (input.cursor as string | undefined);
-      return client.listNotes({ cursor: cursor === "0" ? undefined : cursor });
+      return client.listNotes({ ...input, cursor: cursor === "0" ? undefined : cursor });
     }
     case "get_note": {
       return client.getNote(snowflakeID(input.id, "id"), input.image_quality as string | undefined);
@@ -819,9 +841,18 @@ async function handleTool(
     case "get_note_original": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
       const note = result.note;
-      const original = note.web_page?.content || note.audio?.original || note.content;
+      let original: string | undefined;
+      let original_source: string;
+      switch (note.note_type) {
+        case "ref": original = note.ref_content; original_source = "ref_content"; break;
+        case "plain_text": original = note.content; original_source = "content"; break;
+        case "link": original = note.web_page?.content; original_source = "web_page.content"; break;
+        case "audio":
+        case "local_audio": original = note.audio?.original; original_source = "audio.original"; break;
+        default: throw new Error(`Unsupported note type for original content: ${note.note_type}`);
+      }
       if (!original) throw new Error("Original content is not available for this note");
-      return { id: note.id, note_type: note.note_type, title: note.title, original };
+      return { id: note.id, note_type: note.note_type, title: note.title, original, original_source };
     }
     case "get_note_transcript": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
@@ -906,6 +937,7 @@ async function handleTool(
     // ── Knowledge ──
     case "list_topics": {
       return client.listTopics({
+        ...input,
         page: input.page as number | undefined,
         scope: input.scope as "DEFAULT" | "CUSTOMER" | "BOOKSPACE" | "TEAMSPACE" | undefined,
       });
@@ -919,6 +951,7 @@ async function handleTool(
     }
     case "list_topic_notes": {
       return client.listTopicNotes({
+        ...input,
         topic_id: input.topic_id as string,
         page: input.page as number | undefined,
       });
@@ -1046,6 +1079,7 @@ async function handleTool(
     // ── Knowledge / Subscribe ──
     case "list_subscribe_topics": {
       return client.listSubscribeTopics({
+        ...input,
         page: input.page as number | undefined,
         scope: input.scope as "DEFAULT" | "CUSTOMER" | "BOOKSPACE" | "TEAMSPACE" | undefined,
       });

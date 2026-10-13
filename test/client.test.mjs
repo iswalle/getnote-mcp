@@ -177,3 +177,16 @@ test("OSS multipart fields use the signed names and order", async () => {
     server.close();
   }
 });
+
+
+test("large-integer preservation never rewrites JSON-looking note text", () => {
+  const text = 'example: [1923625755277351496, -1923625755277351496] and "note_id":1923625755277351496, escaped \\"quote\\"';
+  const input = JSON.stringify({content:text,preview:text,nested:{quote:text}}).slice(0,-1)+',"ids":[1923625755277351496,-1923625755277351496],"decimal":1923625755277351.5,"exponent":1923625755277351496e-5}';
+  const parsed = parseJsonPreservingLargeIntegerStrings(input);
+  assert.equal(parsed.content,text);
+  assert.equal(parsed.preview,text);
+  assert.equal(parsed.nested.quote,text);
+  assert.deepEqual(parsed.ids,["1923625755277351496","-1923625755277351496"]);
+  assert.equal(parsed.decimal,1923625755277351.5);
+  assert.equal(parsed.exponent,1923625755277351496e-5);
+});
