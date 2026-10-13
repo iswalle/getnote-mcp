@@ -133,8 +133,8 @@ const noteDiscoveryProperties = {
   ...Object.fromEntries(["created_from", "created_to", "edited_from", "edited_to", "record_updated_from", "record_updated_to"].map(key => [key, { type: "string", description: "RFC3339 带时区，from 包含、to 不包含；三种时间轴独立" }])),
 };
 const knowledgeLookupProperties = {
-  query: { type: "string", description: "按知识库名/书名定位；多候选须核对书名、作者和 book_id" },
-  author: { type: "string", description: "书籍作者，限 BOOKSPACE" },
+  query: { type: "string", description: "只匹配知识库名/书名，不匹配作者；与 author 同时传时为 AND。多候选须核对书名、作者和 book_id" },
+  author: { type: "string", description: "书籍作者，限 BOOKSPACE；只有作者线索时只传 author，不猜书名或把作者填进 query" },
   book_id: { type: "string", description: "书籍 ID 字符串，限 BOOKSPACE" },
   page_size: noteDiscoveryProperties.page_size,
 };

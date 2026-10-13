@@ -2,6 +2,10 @@
 
 # getnote-mcp
 
+## 1.9.1 订阅书库修复
+
+修复 list_subscribe_topics 查询时将 exclude_mine 布尔值误判为非法响应的问题，保留请求筛选条件的严格校验。明确书名 query 与作者 author 的区别及组合条件。
+
 MCP (Model Context Protocol) server for [得到大脑（Get笔记）](https://biji.com) Open API.
 
 得到大脑（Get笔记）是一款个人笔记管理工具。通过此 MCP Server，AI 模型可以帮助用户管理笔记。
