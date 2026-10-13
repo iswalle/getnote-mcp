@@ -12,6 +12,13 @@ MCP (Model Context Protocol) server for [得到大脑（Get笔记）](https://bi
 
 ## 使用场景
 
+### 1.9.0 查找与引用
+
+- 按书名、作者或书籍 ID 定位书库，再按分页读取笔记。
+- 支持来源、引用类型和时间筛选，保留服务端能力与分页信息。
+- 完整内容使用 `get_note`；引用原文使用 `get_note_original`，不把个人评论当作划线原文。
+- 召回保留部分结果标记和资源身份，Top-K 不代表全量。
+
 ### 1.8.0 新能力
 
 - 标记 `get_note_marks`、发芽 `list_sprouts` / `get_sprout`、章节 `get_note_chapters` 与录音 `get_note_timeline` 独立读取。

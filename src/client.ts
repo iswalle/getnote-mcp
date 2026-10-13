@@ -22,12 +22,11 @@ function normalizeBaseURL(value?: string): string {
  */
 export function parseJsonPreservingLargeIntegerStrings(data: unknown) {
   if (typeof data !== "string" || data.trim() === "") return data;
+  // Match complete JSON strings first so numeric text inside note bodies is
+  // never rewritten. Consume full number tokens to preserve decimals/exponents.
   const safe = data.replace(
-    /"(note_id|next_cursor|cursor|id|parent_id|topic_id|since_id|share_id|follow_id|live_id)"\s*:\s*(\d{16,})/g,
-    '"$1":"$2"'
-  ).replace(
-    /([:[,]\s*)(-?\d{16,})(?=\s*[,}\]])/g,
-    '$1"$2"'
+    /"(?:\\[\s\S]|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g,
+    token => /^-?\d{16,}$/.test(token) ? JSON.stringify(token) : token
   );
   return JSON.parse(safe);
 }
