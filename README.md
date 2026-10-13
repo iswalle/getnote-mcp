@@ -2,10 +2,6 @@
 
 # getnote-mcp
 
-## 1.9.1 订阅书库修复
-
-修复 list_subscribe_topics 查询时将 exclude_mine 布尔值误判为非法响应的问题，保留请求筛选条件的严格校验。明确书名 query 与作者 author 的区别及组合条件。
-
 MCP (Model Context Protocol) server for [得到大脑（Get笔记）](https://biji.com) Open API.
 
 得到大脑（Get笔记）是一款个人笔记管理工具。通过此 MCP Server，AI 模型可以帮助用户管理笔记。
@@ -14,21 +10,19 @@ MCP (Model Context Protocol) server for [得到大脑（Get笔记）](https://bi
 >
 > 💡 **开通会员**：[前往得到大脑会员购买页](https://www.biji.com/checkout?product_alias=9Ab36BB3ZD&spm=openapi_mcp)
 
+## Installation
+
+需要 Node.js 20 或更高版本。
+
+```bash
+# 直接运行（推荐，无需克隆）
+npx @getnote/mcp
+
+# 或全局安装
+npm install -g @getnote/mcp
+```
+
 ## 使用场景
-
-### 1.9.0 查找与引用
-
-- 按书名、作者或书籍 ID 定位书库，再按分页读取笔记。
-- 支持来源、引用类型和时间筛选，保留服务端能力与分页信息。
-- 完整内容使用 `get_note`；引用原文使用 `get_note_original`，不把个人评论当作划线原文。
-- 召回保留部分结果标记和资源身份，Top-K 不代表全量。
-
-### 1.8.0 新能力
-
-- 标记 `get_note_marks`、发芽 `list_sprouts` / `get_sprout`、章节 `get_note_chapters` 与录音 `get_note_timeline` 独立读取。
-- 文件上传前调用 `get_knowledge_file_capabilities` 获取实时格式、大小、页数与额度限制，不维护客户端白名单。
-- `get_knowledge_file_upload_token` 获取临时凭据，本机使用 CLI 1.6.0+ 的 `getnote upload <文件> --token-file <受控文件> --max-size-bytes <能力上限>` 直传 OSS，无需 CLI 再登录。
-- `upload_knowledge_file` 只提交文件元数据；用 `list_topic_directories` 确认同一资源达到 `SUCCESS`，不能把 OSS 上传完成当作解析完成。凭据只经 stdin 或受控文件传递，不出现在聊天或命令参数中。
 
 - 用户说「帮我记一下」「保存到笔记」「记录下来」→ `save_note`
 - 用户说「改一下这个笔记」「更新笔记内容」→ `update_note`
@@ -52,6 +46,12 @@ Exposes the following tools to AI models:
 | `get_note_original` | 按笔记类型直接读取原文 |
 | `get_note_transcript` | 直接读取录音、会议或课堂转写 |
 | `get_note_attachments` | 直接列出图片、音频和文件附件 |
+| `get_note_marks` | 读取笔记标记 |
+| `get_note_chapters` | 读取独立章节时间线 |
+| `list_sprouts` / `get_sprout` | 列出发芽报告 / 读取报告详情 |
+| `get_knowledge_file_capabilities` | 查询知识库文件限制 |
+| `get_knowledge_file_upload_token` | 获取临时 OSS 上传凭据 |
+| `upload_knowledge_file` | 提交已上传文件的入库元数据 |
 | `get_note_timeline` | 直接读取录音或会议时间线及原文资源 |
 | `get_note_quick_note` | 直接读取录音快捷笔记 |
 | `get_note_todos` | 读取会议总结中明确待办章节规则解析出的待办；不让模型自由猜测 |
@@ -85,18 +85,6 @@ Exposes the following tools to AI models:
 | `share_note` | 生成笔记分享链接 |
 | `follow_topic_live` | 在知识库里订阅得到直播 |
 | `list_subscribe_topics` | 获取真实订阅的他人知识库，默认 DEFAULT，可指定 scope |
-
-## Installation
-
-需要 Node.js 20 或更高版本。
-
-```bash
-# 直接运行（推荐，无需克隆）
-npx @getnote/mcp
-
-# 或全局安装
-npm install -g @getnote/mcp
-```
 
 ## Usage
 
@@ -162,6 +150,21 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 | `img_text` | 图片笔记（需传 `image_urls`，通过上传图片到 OSS 获取） |
 
 > **语音笔记等其他类型**只能在 得到大脑（Get笔记） App 或 Web 端创建，MCP 可以读取但无法创建。
+
+## 查找笔记与书库
+
+- 书名用 `list_topics` 的 `query`，作者用 `author`，并指定 `scope: "BOOKSPACE"`。两者同时传入时须同时匹配；订阅书库使用 `list_subscribe_topics`。
+- 书库定位后用 `list_topic_notes` 读取笔记。用户要全部笔记时不默认加 `note_type: "ref"`；仅要划线或摘录时再加。
+- 得到课程文稿可用 `list_notes` 的 `source: "dedao"`、`note_type: "ref"`、`reference_resource_type: "course_article"` 列出定位信息，再核对来源元数据。课程名称不是该接口的筛选参数。
+- 列表用于定位；完整内容调用 `get_note`，引用原文调用 `get_note_original`。引用笔记的 `ref_content` 是原文，`content` 是个人评论。
+- 按响应的 `pagination.next_page` / `next_cursor` 继续，保持筛选条件；只有遍历完成才能说全部找到。语义搜索 Top-K 不代表全量，搜索为空也不能证明没有相关笔记。
+
+## 独立报告与知识库文件
+
+- 标记 `get_note_marks`、发芽 `list_sprouts` / `get_sprout`、章节 `get_note_chapters` 与录音 `get_note_timeline` 独立读取。
+- 文件上传前调用 `get_knowledge_file_capabilities` 获取格式、大小、页数与额度限制。
+- `get_knowledge_file_upload_token` 获取临时凭据，本机用 CLI 1.6.0+ 的 `getnote upload <文件> --token-file <受控文件> --max-size-bytes <能力上限>` 直传 OSS，无需 CLI 再登录。
+- `upload_knowledge_file` 提交文件元数据；用 `list_topic_directories` 确认同一资源达到 `SUCCESS`。OSS 上传完成不等于解析完成。凭据不出现在聊天或命令参数中。
 
 ## 图片上传流程
 
@@ -266,6 +269,9 @@ Get your API Key and Client ID at [得到大脑（Get笔记）开放平台](http
 
 | 日期 | 版本 | 新能力 | 适合怎么用 |
 |------|------|--------|------------|
+| 2026-10-13 | **v1.9.1** | 修复订阅查询中布尔筛选字段被误判为非法响应的问题；明确书名与作者参数 | 正常查询订阅书库，保留作者等筛选条件的严格校验 |
+| 2026-10-13 | **v1.9.0** | 支持书库身份、引用来源和时间筛选，保留分页及元数据 | 按来源找到笔记，通过详情读取全文，区分划线原文与评论 |
+| 2026-09-24 | **v1.8.0** | 独立读取标记、发芽、章节时间线；支持知识库文件能力、临时上传凭据与入库 | 云 MCP 配合本地 CLI 上传文件，无需重复授权 |
 | 2026-08-13 | **v1.7.0** | 1. 支持知识库目录浏览、创建、重命名、移动和删除<br>2. 支持将笔记加入指定目录，以及读取和维护已有团队知识库 `TEAMSPACE`<br>3. 支持订阅抖音博主、读取博主内容<br>4. 增加录音原文、链接原文、附件、时间线、快捷笔记和会议待办工具<br>5. 统一雪花 ID、结构化错误和异步任务结果 | 让支持 MCP 的 AI 工具直接整理知识库、归档笔记并读取深层内容；调用失败时保留明确原因和 `request_id`，便于恢复与排查 |
 | 2026-04-23 | **v1.3.1** | 1. 笔记内链<br>2. 保存分享链接自动变笔记 | 1. 用内链串联每天的工作日志和项目笔记，实践时间日志法<br>2. 收到别人发来的分享链接直接存入笔记 |
 | 2026-04-16 | **v1.3.0** | 1. 生成笔记分享链接<br>2. 知识库订阅得到直播 | 1. 把笔记一键分享给朋友<br>2. 在知识库里订阅得到直播课，直播结束后 AI 摘要自动入库 |
