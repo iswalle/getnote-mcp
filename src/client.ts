@@ -3,6 +3,22 @@ import { discoveryContract, verifyDiscovery, NoteDiscoveryOptions, LookupOptions
 
 const DEFAULT_BASE_URL = "https://openapi.biji.com/open/api/v1";
 
+function retryAfterSeconds(body: unknown, header: unknown): number | undefined {
+  let wait = typeof body === "number" && Number.isSafeInteger(body) && body >= 0 ? body : undefined;
+  if (typeof header !== "string" || !header.trim()) return wait;
+  const value = header.trim();
+  let seconds: number | undefined;
+  if (/^\d+$/.test(value)) {
+    const parsed = Number(value);
+    if (Number.isSafeInteger(parsed)) seconds = parsed;
+  } else if (/^[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(value)) {
+    const date = Date.parse(value);
+    if (Number.isFinite(date)) seconds = Math.max(0, Math.ceil((date - Date.now()) / 1000));
+  }
+  if (seconds !== undefined) wait = Math.max(wait ?? 0, seconds);
+  return wait;
+}
+
 function normalizeBaseURL(value?: string): string {
   const base = (value || DEFAULT_BASE_URL).replace(/\/+$/, "");
   if (base.endsWith("/open/api/v1")) return base;
@@ -40,7 +56,9 @@ export class GetNoteAPIError extends Error {
     public readonly retryable: boolean = false,
     public readonly field?: string,
     public readonly constraint?: string,
-    public readonly expectedType?: string
+    public readonly expectedType?: string,
+    public readonly supportedValues?: string[],
+    public readonly retryAfterSeconds?: number
   ) {
     super(message);
     this.name = "GetNoteAPIError";
@@ -122,7 +140,9 @@ export class GetNoteClient {
           err?.retryable ?? false,
           err?.field,
           err?.constraint,
-          err?.expected_type
+          err?.expected_type,
+          err?.supported_values,
+          retryAfterSeconds(err?.retry_after_seconds, res.headers["retry-after"])
         );
       }
 
@@ -150,7 +170,9 @@ export class GetNoteClient {
             body.error.retryable ?? false,
             body.error.field,
             body.error.constraint,
-            body.error.expected_type
+            body.error.expected_type,
+            body.error.supported_values,
+            retryAfterSeconds(body.error.retry_after_seconds, err.response.headers["retry-after"])
           );
         }
         throw new Error(`HTTP ${err.response.status}: ${err.message}`);
@@ -887,6 +909,8 @@ interface APIErrorBody {
   field?: string;
   constraint?: string;
   expected_type?: string;
+  supported_values?: string[];
+  retry_after_seconds?: number;
 }
 
 export interface UpdateNoteResp {

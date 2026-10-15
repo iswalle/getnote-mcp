@@ -1161,6 +1161,8 @@ async function main() {
           field: err.field,
           constraint: err.constraint,
           expected_type: err.expectedType,
+          supported_values: err.supportedValues,
+          retry_after_seconds: err.retryAfterSeconds,
         };
         if (err.code === 10201) {
           errPayload.membership_url = OPENAPI_MEMBERSHIP_PURCHASE_URL;
