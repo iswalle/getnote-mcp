@@ -7,6 +7,8 @@ import {readRetryDelay} from '../dist/read-retry.js';
 test('outer read retry is bounded and never replays writes or quota',async t=>{
  for(const [name,kind,wait,code,reason,retryable,want]of [
   ['read','read','0',10202,'qps_exceeded',true,3],['batch','batch','0',10202,'qps_exceeded',true,3],
+  ['global-qps','read','0',10202,'qps_global_exceeded',true,3],['bucket-qps','read','0',10202,'qps_bucket_exceeded',true,3],
+  ['global-qps-write','write','0',10202,'qps_global_exceeded',true,1],['bucket-qps-token','token','0',10202,'qps_bucket_exceeded',true,1],
   ['write','write','0',10202,'qps_exceeded',true,1],['token','token','0',10202,'qps_exceeded',true,1],
   ['quota','read','0',10203,'quota_exhausted',true,1],['long','read','60',10202,'qps_exceeded',true,1],
   ['nonretryable','read','0',10202,'qps_exceeded',false,1],['unknown','read','0',10202,'future_limit',true,1],
