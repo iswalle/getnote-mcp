@@ -1,7 +1,25 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 import { discoveryContract, verifyDiscovery, NoteDiscoveryOptions, LookupOptions, DiscoveryKind } from "./discovery";
+import {BatchDetailOptions,SearchOptions,normalizeBatch,validateSearchOptions,verifyExperience} from "./experience";
+import {readRetryDelay,waitForReadRetry} from "./read-retry";
 
 const DEFAULT_BASE_URL = "https://openapi.biji.com/open/api/v1";
+
+function retryAfterSeconds(body: unknown, header: unknown): number | undefined {
+  let wait = typeof body === "number" && Number.isSafeInteger(body) && body >= 0 ? body : undefined;
+  if (typeof header !== "string" || !header.trim()) return wait;
+  const value = header.trim();
+  let seconds: number | undefined;
+  if (/^\d+$/.test(value)) {
+    const parsed = Number(value);
+    if (Number.isSafeInteger(parsed)) seconds = parsed;
+  } else if (/^[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(value)) {
+    const date = Date.parse(value);
+    if (Number.isFinite(date)) seconds = Math.max(0, Math.ceil((date - Date.now()) / 1000));
+  }
+  if (seconds !== undefined) wait = Math.max(wait ?? 0, seconds);
+  return wait;
+}
 
 function normalizeBaseURL(value?: string): string {
   const base = (value || DEFAULT_BASE_URL).replace(/\/+$/, "");
@@ -32,6 +50,8 @@ export function parseJsonPreservingLargeIntegerStrings(data: unknown) {
 }
 
 export class GetNoteAPIError extends Error {
+  httpStatus?:number;
+  waitProvided=false;
   constructor(
     public readonly code: number,
     public readonly reason: string,
@@ -40,11 +60,17 @@ export class GetNoteAPIError extends Error {
     public readonly retryable: boolean = false,
     public readonly field?: string,
     public readonly constraint?: string,
-    public readonly expectedType?: string
+    public readonly expectedType?: string,
+    public readonly supportedValues?: string[],
+    public readonly retryAfterSeconds?: number
   ) {
     super(message);
     this.name = "GetNoteAPIError";
   }
+}
+
+function apiFailure(err:APIErrorBody|undefined,requestID:string|undefined,status:number,header:unknown):GetNoteAPIError {
+  return Object.assign(new GetNoteAPIError(err?.code??-1,err?.reason??"unknown",err?.message??"API request failed",requestID,err?.retryable??false,err?.field,err?.constraint,err?.expected_type,err?.supported_values,retryAfterSeconds(err?.retry_after_seconds,header)),{httpStatus:status,waitProvided:err?.retry_after_seconds!==undefined||header!==undefined});
 }
 
 export class GetNoteClient {
@@ -67,6 +93,12 @@ export class GetNoteClient {
     return this.request<unknown>("POST", "/resource/knowledge/file/upload", undefined, data);
   }
   private http: AxiosInstance;
+  private requestSignal?:AbortSignal;
+
+  withSignal(signal:AbortSignal):GetNoteClient {
+    // Per-call view shares the HTTP transport, never another call's signal.
+    return Object.assign(Object.create(Object.getPrototypeOf(this)),this,{requestSignal:signal});
+  }
 
   constructor(apiKey: string, clientId: string, baseURL?: string) {
     this.http = axios.create({
@@ -89,12 +121,32 @@ export class GetNoteClient {
   }
 
   private async request<T>(
+    method:"GET"|"POST",path:string,params?:Record<string,unknown>,data?:unknown
+  ):Promise<T>{
+    let waited=0;let lastError:GetNoteAPIError|undefined;
+    for(let attempt=0;;attempt++){
+      try {
+        this.requestSignal?.throwIfAborted();
+        return await this.requestOnce<T>(method,path,params,data);
+      }catch(err){
+        if(this.requestSignal?.aborted&&lastError)throw Object.assign(lastError,{cause:this.requestSignal.reason});
+        if(!(err instanceof GetNoteAPIError))throw err;
+        const delay=readRetryDelay(method,path,err,attempt,waited);
+        if(delay===undefined)throw err;
+        lastError=err;const start=performance.now();
+        try {await waitForReadRetry(delay,this.requestSignal)}catch(cause){throw Object.assign(err,{cause})}
+        waited+=performance.now()-start;
+      }
+    }
+  }
+
+  private async requestOnce<T>(
     method: "GET" | "POST",
     path: string,
     params?: Record<string, unknown>,
     data?: unknown
   ): Promise<T> {
-    const kinds: Record<string, DiscoveryKind> = { "/resource/note/list": "notes", "/resource/note/detail": "detail", "/resource/knowledge/notes": "topicNotes", "/resource/knowledge/list": "topics", "/resource/knowledge/subscribe/list": "topics" };
+    const kinds: Record<string, DiscoveryKind> = { "/resource/note/list": "notes", "/resource/note/detail": "detail", "/resource/knowledge/notes": "topicNotes", "/resource/knowledge/list": "topics", "/resource/knowledge/subscribe/list": "topics", "/resource/reference/list":"references" };
     const contract = method === "GET" && kinds[path] ? discoveryContract(kinds[path], params || {}) : undefined;
     if (contract) params = contract.params;
     try {
@@ -109,24 +161,17 @@ export class GetNoteClient {
         url: path,
         params,
         data,
+        signal:this.requestSignal,
       });
 
       const body = res.data;
       if (!body.success) {
         const err = body.error;
-        throw new GetNoteAPIError(
-          err?.code ?? -1,
-          err?.reason ?? "unknown",
-          err?.message ?? "API request failed",
-          body.request_id,
-          err?.retryable ?? false,
-          err?.field,
-          err?.constraint,
-          err?.expected_type
-        );
+        throw apiFailure(err,body.request_id,res.status,res.headers["retry-after"]);
       }
 
       if (contract) verifyDiscovery(body, contract);
+      verifyExperience(body,path,data);
       // Keep the verified envelope capabilities visible to the Agent.
       if (body.meta?.capabilities && typeof body.data === "object" && body.data !== null && !Array.isArray(body.data)) {
         return { ...body.data, meta: body.meta };
@@ -142,16 +187,7 @@ export class GetNoteClient {
           request_id?: string;
         };
         if (body?.error) {
-          throw new GetNoteAPIError(
-            body.error.code,
-            body.error.reason,
-            body.error.message,
-            body.request_id,
-            body.error.retryable ?? false,
-            body.error.field,
-            body.error.constraint,
-            body.error.expected_type
-          );
+          throw apiFailure(body.error,body.request_id,err.response.status,err.response.headers["retry-after"]);
         }
         throw new Error(`HTTP ${err.response.status}: ${err.message}`);
       }
@@ -164,6 +200,14 @@ export class GetNoteClient {
 
   async listNotes(params: NoteDiscoveryOptions) {
     return this.request<ListNotesResp>("GET", "/resource/note/list", { ...params });
+  }
+
+  async listReferenceResources(params:{source:string;resource_type:string;query?:string;author?:string;match_mode?:string;page_size?:number;cursor?:string}){
+    return this.request<ReferenceResourcesResp>("GET","/resource/reference/list",params);
+  }
+
+  async getNotes(body:BatchDetailOptions){
+    return this.request<BatchDetailResp>("POST","/resource/note/batch-detail",undefined,normalizeBatch(body));
   }
 
   async getNote(id: string | number, image_quality?: string) {
@@ -445,11 +489,13 @@ export class GetNoteClient {
 
   // ─── Recall / Search ─────────────────────────────────────────────────────
 
-  async recall(body: { query: string; top_k?: number }) {
+  async recall(body: { query: string; top_k?: number }&SearchOptions) {
+    validateSearchOptions(body);
     return this.request<RecallResp>("POST", "/resource/recall", undefined, body);
   }
 
-  async recallKnowledge(body: { topic_id: string; query: string; top_k?: number }) {
+  async recallKnowledge(body: { topic_id: string; query: string; top_k?: number }&SearchOptions) {
+    validateSearchOptions(body);
     return this.request<RecallResp>("POST", "/resource/recall/knowledge", undefined, body);
   }
 }
@@ -463,6 +509,7 @@ export interface TagInfo {
 }
 
 export interface NoteReference {
+  course?:{type:string;id:string;title?:string;author?:string;[key:string]:unknown};
   source: string; resource_type: string; ptype: number; resource_id?: string;
   title?: string; author?: string; url?: string; original_note_id?: string;
   is_source_private: boolean; book_id?: string;
@@ -479,6 +526,7 @@ export interface DiscoveryMetadata {
   metadata_state?: { reference: string; topics: string };
 }
 export interface DiscoveryResponse {
+  total_scope?:string;
   meta?: { capabilities: string[]; timestamp?: number };
   pagination?: { mode: "page" | "cursor"; page: number | null; page_size: number; returned_count: number; total_count: number | null; has_more: boolean; next_page: number | null; next_cursor: string | null };
   applied_filters?: Record<string, unknown>;
@@ -887,6 +935,8 @@ interface APIErrorBody {
   field?: string;
   constraint?: string;
   expected_type?: string;
+  supported_values?: string[];
+  retry_after_seconds?: number;
 }
 
 export interface UpdateNoteResp {
@@ -900,9 +950,9 @@ export interface UpdateNoteResp {
 export interface RecallResultItem {
   note_id?: string;
   resource_id?: string;
-  note_type: "NOTE" | "FILE" | "BLOGGER" | "LIVE" | "URL" | "DEDAO";
+  note_type: string;
   title: string;
-  content: string;
+  content?: string;
   created_at: string;
   page_no?: number;
   resource_type?: string;
@@ -911,13 +961,28 @@ export interface RecallResultItem {
   snippet?: string;
   snippet_source?: string;
   score?: number | null;
+  truncated?:boolean;
+  content_state?:{content:string;snippet:string};
 }
 
 export interface RecallResp extends DiscoveryResponse {
+  response_mode?:string;
+  max_snippet_chars?:number;
+  max_total_bytes?:number;
   results: RecallResultItem[];
   result_mode?: string;
   is_exhaustive?: boolean;
   returned_count?: number;
   distinct_note_count?: number;
   partial?: boolean;
+}
+
+export interface ReferenceResourcesResp extends DiscoveryResponse {
+  resources:Array<{source:string;resource_type:string;course_type:string;course_id:string;title:string;author:string;url:string;has_notes:boolean;metadata_state:string;[key:string]:unknown}>;
+  partial:boolean;
+}
+export interface BatchDetailResp extends DiscoveryResponse {
+  items:Array<{note_id:string;status:string;note?:Record<string,unknown>;[key:string]:unknown}>;
+  pending_ids:string[];
+  total_chars:number;max_total_chars:number;max_total_bytes:number;partial:boolean;
 }

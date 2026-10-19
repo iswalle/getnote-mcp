@@ -124,9 +124,11 @@ function snowflakeID(value: unknown, field: string): string | number {
 const noteDiscoveryProperties = {
   page: { type: "integer", minimum: 1, description: "知识库内可用页码；与 cursor 互斥" },
   source: { type: "string", description: "来源平台精确筛选，如 dedao" },
-  note_type: { type: "string", description: "笔记真实类型精确筛选，如 ref" },
+  note_type: { type: "string", description: "真实类型精确筛选：ref=引用划线，audio=即时/普通录音，local_audio=上传音频文件，class_audio=自己录制的课堂笔记，meeting=会议，internal_record=内录，recorder_audio/recorder_flash_audio=录音卡长录音/闪念。录音不默认限定dedao或课程。" },
   reference_resource_type: { type: "string", description: "引用资源类型，如 ebook、course_article、audio_book" },
   reference_resource_id: { type: "string", description: "引用资源 ID，必须字符串；同时传 source 和 reference_resource_type" },
+  reference_course_type:{type:"string",description:"课程容器类型，当前66；与reference_course_id配对，source=dedao，个人笔记，不与topic_id组合"},
+  reference_course_id:{type:"string",description:"真实课程容器ID字符串，来自list_reference_resources；不使用课节resource_id替代"},
   reference_article_url: { type: "string", description: "文章 URL 精确筛选，保留 query 和 fragment" },
   topic_id: { type: "string", description: "知识库 ID，限定授权范围" },
   page_size: { type: "integer", minimum: 1, maximum: 100, description: "每页 1–100 条，默认 20" },
@@ -138,13 +140,27 @@ const knowledgeLookupProperties = {
   book_id: { type: "string", description: "书籍 ID 字符串，限 BOOKSPACE" },
   page_size: noteDiscoveryProperties.page_size,
 };
+const snippetProperties={
+  response_mode:{type:"string",enum:["snippet"],description:"显式摘要模式；不传保持旧正文。需search.snippet.v1，不支持课程内语义筛选"},
+  max_snippet_chars:{type:"integer",minimum:100,maximum:1000,description:"每个命中的Unicode码点上限，默认400；需response_mode=snippet，full只表示完整片段"},
+};
 
 const TOOLS: Tool[] = [
+  {
+    name:"list_reference_resources",
+    description:"按课程名/老师定位有个人笔记的得到课程，不需要知识库。query仅课程名exact/prefix，author精确，二者AND且至少一个；用返回course_type+course_id筛选list_notes。核对reference.resources.v1与applied_filters，空页has_more=true仍沿next_cursor继续。保留每页partial/warnings及候选metadata_state；course_directory_no_lessons表示目录缺课节，末页has_more=false仍不能宣称找全老师的全部课程。total未知，不冒充全站课程列表或课程内语义搜索。",
+    inputSchema:{type:"object",properties:{source:{type:"string",enum:["dedao"]},resource_type:{type:"string",enum:["course"]},query:{type:"string",description:"课程名，author可单独提供"},author:{type:"string",description:"老师准确姓名，与query为AND"},match_mode:{type:"string",enum:["exact","prefix"],description:"只控制课程名，默认exact"},page_size:noteDiscoveryProperties.page_size,cursor:{type:"string",description:"原样保留的游标，继续时保持全部筛选"}},required:["source","resource_type"],additionalProperties:false},
+  },
+  {
+    name:"get_notes",
+    description:"单次后端批量读取最多20个去重个人笔记ID，保持顺序。默认content/ref_content/reference，original需显式选择；引用原文ref_content，content是评论。默认32000/最多64000Unicode码点及1MiB。逐条保留ok/unavailable/failed/deferred_budget、content_state、pending_ids和partial，成功调用不代表每条读完；整条超预算按需改用旧get_note，不自动并发20次。不批量开放知识库共享权限。需note.batch_detail.v1。",
+    inputSchema:{type:"object",properties:{ids:{type:"array",items:{type:"string",description:"正int64十进制字符串，不能传JS Number"},minItems:1,maxItems:200},fields:{type:"array",items:{type:"string",enum:["content","ref_content","reference","original"]}},max_total_chars:{type:"integer",minimum:1,maximum:64000,description:"正文Unicode码点预算，默认32000；不会截断成功项"}},required:["ids"],additionalProperties:false},
+  },
   // ── Notes ──
   {
     name: "list_notes",
     description:
-      "按来源、引用资源或知识库查找笔记。列表只返回定位信息；需要正文和完整元数据时调用 get_note。新查询须核对 meta.capabilities、applied_filters，按 pagination.next_cursor 翻页到 has_more=false 才能说全量完成。total_count=null 表示未知，不能用本页条数代替全库总数。",
+      "按来源、引用资源或知识库查找笔记。列表只返回定位信息；少量个人笔记正文按需用get_notes，知识库共享笔记保持get_note原权限路径。新查询核对meta.capabilities、applied_filters并按pagination.next_cursor翻页；partial/warnings未解决时末页也不代表来源完整。书库无匹配可按note_type=ref列定位信息，在真实reference中核对书籍作者/书名/book_id；保留时间、平台和知识库范围，平台未知不自加dedao，一次发现最多5页，未遍历完说明未查完。book_info.author与reference.author冲突须分别标注，候选不直接认定作者身份。total_count=null表示未知。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -362,7 +378,7 @@ const TOOLS: Tool[] = [
   // ── Knowledge / Topics ──
   {
     name: "list_topics",
-    description: "获取用户创建、拥有或加入的知识库列表。默认只返回普通知识库（DEFAULT）；可用 scope 指定客户档案、书籍或团队知识库。返回 topics[]、has_more、total。",
+    description: "获取用户创建、拥有或加入的知识库列表，默认DEFAULT；查书名/书籍作者显式scope=BOOKSPACE，query只匹配书名、author匹配书籍作者，二者AND，只有作者线索就只传author。返回topics[]、has_more、total，完整分页并核对book_info。无匹配且用户未限定只查自有时，用list_subscribe_topics保留全部条件补查；仍无匹配再按list_notes的引用来源路线补查，不能把空书库当账号没有划线。用户限定具体知识库时保留原范围；来源作者冲突保留为待核验候选。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -741,7 +757,7 @@ const TOOLS: Tool[] = [
   {
     name: "list_subscribe_topics",
     description:
-      "获取当前用户真实订阅的他人知识库列表，不包含自己创建的知识库。默认只返回 DEFAULT；可用 scope 指定其他类型。返回 topics[]、has_more、total。",
+      "获取当前用户真实订阅的他人知识库，不含自己创建的库。默认DEFAULT；书籍显式BOOKSPACE，保留query/author/book_id及分页。自有书库无匹配时可补查这里；仍无匹配且用户未限定只查订阅库时，按list_notes的个人引用来源路线核对候选，保留已知平台/时间，不能把空库当没有笔记。返回topics[]、has_more、total。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -781,6 +797,7 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: "object" as const,
       properties: {
+        ...snippetProperties,
         query: {
           type: "string",
           description: "搜索关键词或语义描述（必填）",
@@ -801,6 +818,7 @@ const TOOLS: Tool[] = [
     inputSchema: {
       type: "object" as const,
       properties: {
+        ...snippetProperties,
         topic_id: {
           type: "string",
           description: "知识库 ID（来自 list_topics 的 topic_id 字段）（必填）",
@@ -830,6 +848,8 @@ async function handleTool(
   client: GetNoteClient
 ): Promise<unknown> {
   switch (name) {
+    case "list_reference_resources":return client.listReferenceResources(input as Parameters<GetNoteClient["listReferenceResources"]>[0]);
+    case "get_notes":return client.getNotes(input as Parameters<GetNoteClient["getNotes"]>[0]);
     // ── Notes ──
     case "list_notes": {
       const cursor = (input.cursor as string | undefined);
@@ -1093,12 +1113,16 @@ async function handleTool(
     // ── Recall / Search ──
     case "recall": {
       return client.recall({
+        response_mode:input.response_mode as string|undefined,
+        max_snippet_chars:input.max_snippet_chars as number|undefined,
         query: input.query as string,
         top_k: input.top_k as number | undefined,
       });
     }
     case "recall_knowledge": {
       return client.recallKnowledge({
+        response_mode:input.response_mode as string|undefined,
+        max_snippet_chars:input.max_snippet_chars as number|undefined,
         topic_id: input.topic_id as string,
         query: input.query as string,
         top_k: input.top_k as number | undefined,
@@ -1135,12 +1159,12 @@ async function main() {
   }));
 
   // Call tool
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler(CallToolRequestSchema, async (request,extra) => {
     const { name, arguments: args } = request.params;
     const input = (args ?? {}) as ToolInput;
 
     try {
-      const result = await handleTool(name, input, client);
+      const result = await handleTool(name, input, client.withSignal(extra.signal));
       return {
         content: [
           {
@@ -1161,6 +1185,8 @@ async function main() {
           field: err.field,
           constraint: err.constraint,
           expected_type: err.expectedType,
+          supported_values: err.supportedValues,
+          retry_after_seconds: err.retryAfterSeconds,
         };
         if (err.code === 10201) {
           errPayload.membership_url = OPENAPI_MEMBERSHIP_PURCHASE_URL;

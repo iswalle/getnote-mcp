@@ -42,6 +42,8 @@ Exposes the following tools to AI models:
 | Tool | Description |
 |------|-------------|
 | `list_notes` | 获取笔记列表（游标分页） |
+| `list_reference_resources` | 按课程名/老师定位有个人笔记的课程容器 |
+| `get_notes` | 单次后端批量读取最多20条个人笔记正文，保留预算与逐条状态 |
 | `get_note` | 获取笔记详情（支持 `image_quality=original` 获取原图） |
 | `get_note_original` | 按笔记类型直接读取原文 |
 | `get_note_transcript` | 直接读取录音、会议或课堂转写 |
@@ -155,8 +157,11 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 - 书名用 `list_topics` 的 `query`，作者用 `author`，并指定 `scope: "BOOKSPACE"`。两者同时传入时须同时匹配；订阅书库使用 `list_subscribe_topics`。
 - 书库定位后用 `list_topic_notes` 读取笔记。用户要全部笔记时不默认加 `note_type: "ref"`；仅要划线或摘录时再加。
-- 得到课程文稿可用 `list_notes` 的 `source: "dedao"`、`note_type: "ref"`、`reference_resource_type: "course_article"` 列出定位信息，再核对来源元数据。课程名称不是该接口的筛选参数。
+- 本分支增加 `list_reference_resources`：source=dedao、resource_type=course，query仅匹配课程名exact/prefix，author精确匹配老师，两者AND且至少一个。由返回course_type+course_id调用 `list_notes` 的 reference_course_type/reference_course_id；当前66，包含课程直接引用及所属课节。旧reference_resource_id仍是原课节ID，组合按交集；course+topic_id与课程内语义搜索尚未开放。
+- 新请求核对当前接口 capabilities/applied_filters，不把本地安装当作服务已发布，不接受旧服务忽略课程条件的成功结果。课程目录允许空结果页has_more=true，继续真实next_cursor；只有完成当前授权范围的遍历才能说已查全。
 - 列表用于定位；完整内容调用 `get_note`，引用原文调用 `get_note_original`。引用笔记的 `ref_content` 是原文，`content` 是个人评论。
+- 少量个人笔记可用 `get_notes` 的ids字符串数组，最多20个去重ID，默认content/ref_content/reference；original显式请求。默认32000/上限64000个Unicode码点及1MiB，成功项完整，deferred_budget整条待读，保留pending_ids/partial，不自动并发20次详情，不开放知识库共享权限。未知未来字段与状态原样保留。
+- `recall` / `recall_knowledge` 显式传response_mode=snippet，可选max_snippet_chars=100..1000（默认400），核对search.snippet.v1，保留snippet_source/truncated/content_state；full指完整命中片段，不是全文。旧调用不传新参数保持原正文和top_k语义。
 - 按响应的 `pagination.next_page` / `next_cursor` 继续，保持筛选条件；只有遍历完成才能说全部找到。语义搜索 Top-K 不代表全量，搜索为空也不能证明没有相关笔记。
 
 ## 独立报告与知识库文件
@@ -235,6 +240,7 @@ Get your API Key and Client ID at [得到大脑（Get笔记）开放平台](http
 - `list_topics` 和 `list_subscribe_topics` 默认只返回 `DEFAULT`；需要书籍、客户档案或团队知识库时，显式传 `BOOKSPACE`、`CUSTOMER` 或 `TEAMSPACE`。订阅列表不包含自己创建的知识库。
 - 知识库支持文件夹浏览和管理；`batch_add_notes_to_topic` 可传 `directory_id`，把笔记直接加入目标文件夹。
 - 即使 HTTP 为 200，`success:false` 仍按失败处理；错误结果保留 `code/reason/retryable/field/constraint/expected_type/request_id`。
+- 错误增量保留supported_values/retry_after_seconds。明确只读的瞬时QPS429最多额外重试2次、累计等待5秒，尊重等待建议并增加正向抖动；配额、写操作、凭证签发与未知接口不重试。MCP取消会中止等待/请求，保留最后错误与等待建议。
 - `GETNOTE_API_URL` 可传站点根地址、`/open` 或完整 `/open/api/v1`；未设置时仍使用生产地址。
 
 ## 🚀 进阶用法：用笔记内链实践柳比歇夫时间日志法

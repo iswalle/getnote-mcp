@@ -1,4 +1,5 @@
 import { z } from "zod";
+import {decimalID} from "./experience";
 
 const text = z.string().trim().min(1);
 const integer = z.number().int().positive();
@@ -6,6 +7,7 @@ const times = ["created_from", "created_to", "edited_from", "edited_to", "record
 export const noteSelectors = {
   source: text.optional(), note_type: text.optional(),
   reference_resource_type: text.optional(), reference_resource_id: text.optional(),
+  reference_course_type: text.optional(), reference_course_id: text.optional(),
   reference_article_url: z.string().url().refine(v => /^https?:\/\//.test(v)).optional(),
   topic_id: text.optional(), page_size: integer.max(100).optional(),
   created_from: text.optional(), created_to: text.optional(), edited_from: text.optional(), edited_to: text.optional(),
@@ -15,7 +17,7 @@ export type NoteDiscoveryOptions = z.infer<ReturnType<typeof noteSchema>>;
 function noteSchema() { return z.object({ ...noteSelectors, page: integer.optional(), cursor: z.string().min(1).optional() }).strict(); }
 const lookupSchema = z.object({ page: integer.optional(), scope: z.enum(["DEFAULT", "CUSTOMER", "BOOKSPACE", "TEAMSPACE"]).optional(), query: text.optional(), author: text.optional(), book_id: text.optional(), page_size: integer.max(100).optional() }).strict();
 export type LookupOptions = z.infer<typeof lookupSchema>;
-export type DiscoveryKind = "notes" | "topicNotes" | "topics" | "detail";
+export type DiscoveryKind = "notes" | "topicNotes" | "topics" | "detail" | "references";
 export type DiscoveryContract = { params: Record<string, unknown>; filters: Record<string, string>; capabilities: string[]; kind: DiscoveryKind };
 
 export function normalizeLookup(value: string): string {
@@ -40,14 +42,18 @@ function timestamp(value: string): { text: string; epoch: bigint } {
 export function discoveryContract(kind: DiscoveryKind, input: Record<string, unknown>): DiscoveryContract | undefined {
   const values = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
   const legacy = kind === "topics" ? ["page", "scope"] : kind === "detail" ? ["id", "image_quality"] : kind === "topicNotes" ? ["topic_id", "page"] : ["cursor"];
-  if (!Object.keys(values).some(k => !legacy.includes(k))) return undefined;
+  if (kind!=="references"&&!Object.keys(values).some(k => !legacy.includes(k))) return undefined;
   let params: Record<string, unknown>;
   const filters: Record<string, string> = {};
   if (kind === "detail") {
     params = z.object({ id: z.union([text, z.number().int().safe()]), image_quality: z.enum(["original"]).optional() }).strict().parse(values);
     return { params, filters, capabilities: ["note.reference.v1"], kind };
   }
-  if (kind === "topics") {
+  if (kind === "references") {
+    params=z.object({source:z.literal("dedao"),resource_type:z.literal("course"),query:text.optional(),author:text.optional(),match_mode:z.enum(["exact","prefix"]).default("exact"),page_size:integer.max(100).default(20),cursor:text.max(4096).optional()}).strict().parse(values);
+    if(!params.query&&!params.author)throw new Error("course lookup requires query or author");
+    for(const key of ["query","author"])if(typeof params[key]==="string"&&Array.from(params[key] as string).length>200)throw new Error("course lookup exceeds input budget");
+  } else if (kind === "topics") {
     params = { scope: "DEFAULT", page: 1, page_size: 20, ...lookupSchema.parse(values) };
     if (params.scope !== "BOOKSPACE" && (params.author || params.book_id)) throw new Error("author and book_id require BOOKSPACE");
     for (const key of ["query", "author"]) if (typeof params[key] === "string") params[key] = normalizeLookup(params[key] as string);
@@ -55,6 +61,10 @@ export function discoveryContract(kind: DiscoveryKind, input: Record<string, unk
     params = { page_size: 20, ...(kind === "topicNotes" ? { page: 1 } : {}), ...noteSchema().parse(values) };
     if (kind === "topicNotes" && !params.topic_id) throw new Error("topic_id is required");
     if (params.page && (!params.topic_id || params.cursor)) throw new Error("page requires topic_id and cannot be combined with cursor");
+    if(params.reference_course_type||params.reference_course_id){
+      if(params.reference_course_type!=="66"||!params.reference_course_id||params.source!=="dedao"||params.topic_id)throw new Error("course requires source=dedao, paired type66 and ID; topic intersection unsupported");
+      params.reference_course_id=decimalID(String(params.reference_course_id));
+    }
     if (params.reference_resource_id) {
       if (!params.source || !params.reference_resource_type) throw new Error("reference ID requires source and resource type");
       const id = String(params.reference_resource_id);
@@ -66,9 +76,11 @@ export function discoveryContract(kind: DiscoveryKind, input: Record<string, unk
   }
   for (const [key, value] of Object.entries(params)) if (!["cursor", "page", "page_size"].includes(key)) filters[key] = String(value);
   const capabilities = ["pagination.v1"];
-  if (kind === "topics") capabilities.push("knowledge.lookup.v1");
+  if(kind==="references")capabilities.push("reference.resources.v1");
+  else if (kind === "topics") capabilities.push("knowledge.lookup.v1");
   else if (Object.keys(filters).length) capabilities.push("note.filters.v1");
-  if (kind !== "topics") capabilities.push("note.reference.v1");
+  if (kind !== "topics"&&kind!=="references") capabilities.push("note.reference.v1");
+  if(params.reference_course_type||params.reference_course_id)capabilities.push("note.course_filter.v1");
   return { params, filters, capabilities, kind };
 }
 
@@ -84,8 +96,13 @@ export function verifyDiscovery(body: unknown, contract: DiscoveryContract): voi
   if (!applied.success) throw new Error("server did not return applied_filters");
   for (const [key, value] of Object.entries(contract.filters)) if (applied.data[key] !== value) throw new Error(`server did not apply ${key}`);
   const p = z.object({ mode: z.enum(["page", "cursor"]), page: integer.nullable(), page_size: integer.max(100), returned_count: z.number().int().nonnegative(), total_count: z.number().int().nonnegative().nullable(), has_more: z.boolean(), next_page: integer.nullable(), next_cursor: z.string().min(1).nullable() }).parse(data.pagination);
-  const items = data[contract.kind === "topics" ? "topics" : "notes"];
+  const items = data[contract.kind === "topics" ? "topics" : contract.kind==="references"?"resources":"notes"];
   const page = contract.params.page;
   if (!Array.isArray(items) || p.mode !== (page ? "page" : "cursor") || p.page_size !== contract.params.page_size || p.returned_count !== items.length || items.length > p.page_size || (p.total_count !== null && p.total_count < items.length) || (page && p.page !== page)) throw new Error("invalid discovery pagination response");
   if (p.has_more ? (page ? p.next_page !== Number(page) + 1 || p.next_cursor !== null : !p.next_cursor || p.next_page !== null) : p.next_page !== null || p.next_cursor !== null) throw new Error("invalid discovery continuation");
+  if(contract.kind==="references"){
+    if(p.total_count!==null)throw new Error("course reference total must be unknown");
+    if(p.has_more&&p.next_cursor===contract.params.cursor)throw new Error("reference cursor did not advance");
+    for(const item of items){const v=z.object({course_type:text,course_id:text}).parse(item);decimalID(v.course_id)}
+  }
 }
