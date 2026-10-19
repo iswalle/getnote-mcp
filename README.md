@@ -153,6 +153,18 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 > **语音笔记等其他类型**只能在 得到大脑（Get笔记） App 或 Web 端创建，MCP 可以读取但无法创建。
 
+## 录音台与录音卡笔记
+
+使用 `list_notes` 的 `source` 定向筛选：AI录音台/墨案MOAN录音台为 `vendor_moan`，GetSeed录音卡为 `getseed`。设备全部笔记只限定来源，不额外加 `note_type=audio/meeting`；录音卡长录音和闪念均包含。明确只要其中一种录音卡模式时，才叠加 `recorder_audio` 或 `recorder_flash_audio`。
+
+```json
+{"name":"list_notes","arguments":{"source":"vendor_moan","page_size":20}}
+```
+
+昨天/上周的笔记叠加 created_from/created_to（用户时区的RFC3339边界，from包含、to不包含）。翻页保留全部原条件，核对 applied_filters.source 与 notes[].source，按 pagination.next_cursor 继续并去重。has_more=false且无未解决的partial/warnings才表示当前授权范围已遍历；旧total不是设备范围总数。空结果不换来源补数，不能用标签或标题猜设备来源；没有设备约束的普通录音查询不加设备source。
+
+只覆盖已经同步成笔记且有权读取的主笔记，不包括设备未同步或尚未形成笔记的会议记录。设备范围内的正文主题先按来源列候选、按需读正文，不把全局recall的Top-K后过滤称为完整设备搜索。转写用 `get_note_transcript`，不把AI总结/preview当作转写，也不把转写缺失当作笔记不存在。
+
 ## 查找笔记与书库
 
 - 书名用 `list_topics` 的 `query`，作者用 `author`，并指定 `scope: "BOOKSPACE"`。两者同时传入时须同时匹配；订阅书库使用 `list_subscribe_topics`。
