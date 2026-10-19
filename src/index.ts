@@ -123,7 +123,7 @@ function snowflakeID(value: unknown, field: string): string | number {
 
 const noteDiscoveryProperties = {
   page: { type: "integer", minimum: 1, description: "知识库内可用页码；与 cursor 互斥" },
-  source: { type: "string", description: "来源平台精确筛选，如 dedao" },
+  source: { type: "string", description: "笔记真实来源精确筛选：vendor_moan=AI录音台/墨案MOAN录音台，getseed=GetSeed录音卡（长录音与闪念），dedao=得到。查设备全部笔记只加来源，不额外限定audio/meeting；未限定设备时不加设备来源。" },
   note_type: { type: "string", description: "真实类型精确筛选：ref=引用划线，audio=即时/普通录音，local_audio=上传音频文件，class_audio=自己录制的课堂笔记，meeting=会议，internal_record=内录，recorder_audio/recorder_flash_audio=录音卡长录音/闪念。录音不默认限定dedao或课程。" },
   reference_resource_type: { type: "string", description: "引用资源类型，如 ebook、course_article、audio_book" },
   reference_resource_id: { type: "string", description: "引用资源 ID，必须字符串；同时传 source 和 reference_resource_type" },
@@ -167,7 +167,7 @@ const TOOLS: Tool[] = [
         ...noteDiscoveryProperties,
         cursor: {
           type: "string",
-          description: "翻页游标。首次不传；后续将上一次响应的 cursor 字段原样传入即可，无需任何转换。",
+          description: "首次省略。来源/类型/时间等新筛选使用pagination.next_cursor，保持原条件和page_size，直到has_more=false；仅旧默认列表沿旧响应cursor继续。不转换、不复用其他来源游标。",
         },
       },
       required: [],
@@ -199,7 +199,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "get_note_transcript",
-    description: "直接读取录音、会议或课堂笔记的转写原文；没有转写时明确返回不可用。",
+    description: "直接读取录音台、录音卡及录音、会议或课堂笔记的转写原文；设备来源先用list_notes.source定位。没有转写时明确返回不可用，不用AI总结代替。",
     inputSchema: { type: "object" as const, properties: { id: { type: ["string", "number"], description: "笔记 ID，推荐十进制字符串" } }, required: ["id"] },
   },
   {
