@@ -179,7 +179,7 @@ export class GetNoteClient {
       return this.usableCredential(kind,id,credential);
     }catch(error){
       if(error instanceof GetNoteAPIError){
-        if(!['credential_operation_unconfirmed','credential_operation_unavailable'].includes(error.reason))throw this.operationAdvice(error,kind,id);
+        if(!['credential_operation_unconfirmed','credential_operation_unavailable','unexpected_http_response'].includes(error.reason))throw this.operationAdvice(error,kind,id);
       }else if(this.requestSignal?.aborted){throw this.operationFailure(kind,id,'credential_operation_unconfirmed')}
       const recovered=await this.lookupOperation(kind,id,error instanceof GetNoteAPIError?error:undefined);
       return {...recovered.credential,operation_id:id,resume_until:recovered.resume_until};
@@ -206,7 +206,15 @@ export class GetNoteClient {
       // negotiated operation or the single-issuance recovery path.
       maxRedirects: 0,
     });
-    this.http.defaults.transformResponse = [parseJsonPreservingLargeIntegerStrings];
+    this.http.defaults.transformResponse = [(data, _headers, status) => {
+      try { return parseJsonPreservingLargeIntegerStrings(data); }
+      catch (error) {
+        // A legacy missing route may return plain text or HTML. Preserve its
+        // verified HTTP status instead of losing it to a JSON SyntaxError.
+        if (status !== undefined && status >= 300) return data;
+        throw error;
+      }
+    }];
 
     this.http.interceptors.response.use(
       (res) => res,
@@ -307,7 +315,10 @@ export class GetNoteClient {
         if (body?.error) {
           throw apiFailure(body.error,body.request_id,err.response.status,err.response.headers["retry-after"]);
         }
-        throw new Error(`HTTP ${err.response.status}: ${err.message}`);
+        throw apiFailure(
+          {code: -1, reason: 'unexpected_http_response', message: `HTTP ${err.response.status}: API response unavailable`},
+          undefined, err.response.status, err.response.headers["retry-after"]
+        );
       }
 
       throw err;
@@ -414,6 +425,9 @@ export class GetNoteClient {
 
     const response = await axios.post(token.host, form, {
       headers: form.getHeaders(),
+      signal: this.requestSignal,
+      timeout: 30000,
+      maxRedirects: 0,
       maxBodyLength: Infinity,
       validateStatus: () => true,
     });
