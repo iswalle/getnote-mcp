@@ -52,7 +52,8 @@ Exposes the following tools to AI models:
 | `get_note_chapters` | 读取独立章节时间线 |
 | `list_sprouts` / `get_sprout` | 列出发芽报告 / 读取报告详情 |
 | `get_knowledge_file_capabilities` | 查询知识库文件限制 |
-| `get_knowledge_file_upload_token` | 获取临时 OSS 上传凭据 |
+| `get_knowledge_file_upload_token` | 获取临时 OSS 上传凭据；可传原 `operation_id` |
+| `get_knowledge_file_upload_operation` | 查询原文件上传凭据操作，避免重复申请 |
 | `upload_knowledge_file` | 提交已上传文件的入库元数据 |
 | `get_note_timeline` | 直接读取录音或会议时间线及原文资源 |
 | `get_note_quick_note` | 直接读取录音快捷笔记 |
@@ -75,7 +76,8 @@ Exposes the following tools to AI models:
 | `update_topic_directory` | 重命名或移动知识库文件夹 |
 | `delete_topic_directory` | 删除空知识库文件夹 |
 | `get_upload_config` | 获取图片上传配置 |
-| `get_upload_token` | 获取图片上传凭证（预签名 URL） |
+| `get_upload_token` | 获取图片上传凭证；可传原 `operation_id` |
+| `get_upload_operation` | 查询原图片上传凭据操作，避免重复申请 |
 | `upload_image` | 完整图片上传（自动获取凭证 + 上传到 OSS）|
 | `list_topic_bloggers` | 获取知识库订阅的博主列表 |
 | `follow_topic_blogger` | 订阅抖音博主到知识库 |
@@ -252,7 +254,11 @@ Get your API Key and Client ID at [得到大脑（Get笔记）开放平台](http
 - `list_topics` 和 `list_subscribe_topics` 默认只返回 `DEFAULT`；需要书籍、客户档案或团队知识库时，显式传 `BOOKSPACE`、`CUSTOMER` 或 `TEAMSPACE`。订阅列表不包含自己创建的知识库。
 - 知识库支持文件夹浏览和管理；`batch_add_notes_to_topic` 可传 `directory_id`，把笔记直接加入目标文件夹。
 - 即使 HTTP 为 200，`success:false` 仍按失败处理；错误结果保留 `code/reason/retryable/field/constraint/expected_type/request_id`。
-- 错误增量保留supported_values/retry_after_seconds。明确只读的瞬时QPS429最多额外重试2次、累计等待5秒，尊重等待建议并增加正向抖动；配额、写操作、凭证签发与未知接口不重试。MCP取消会中止等待/请求，保留最后错误与等待建议。
+- 错误保留 `supported_values`、`retry_after_seconds` 和完整 `rate_limit_detail`（包括未来字段），以及 `request_id`。旧服务器仅对已知只读接口的瞬时 QPS 429 最多额外重试 2 次、累计等待不超过 5 秒。v2 只有明确 `dimension=qps`、`request_execution=not_started`、`retry_action=retry_same_operation` 且 `retryable=true` 时，才允许重放已知操作；写入复用原请求体、图片 URL 与 `client_request_id`。配额、服务不可用、已受理或执行状态不确定的请求不自动重试。取消会中止排队、等待与请求，并保留最后 API 建议。
+- 同一 Node 进程内，按规范化 API 地址、授权 Key 和 Client ID 的 SHA256 隔离排队；同一授权身份的调用及其重试串行，其他身份独立。仅从服务器 quota/config/capabilities 策略或 QPS 错误学习节奏，缓存仅作建议，闲置身份 5 分钟后释放；多个进程之间不协调。
+- 图片和文件凭据先协商 `runtime`。只有服务器同时启用治理、操作恢复并声明 `Idempotency-Key` 与对应状态接口时，才使用稳定的 `operation_id`；默认生成一次，也可显式传入 `^[A-Za-z0-9._:-]{1,128}$`。旧服务器或关闭能力时保留原流程，不发送幂等头；显式要求恢复会在签发前明确失败。
+- 凭据响应丢失或操作未确认时，只查询原操作，不生成新 Key。可用 `get_upload_operation` / `get_knowledge_file_upload_operation` 继续查询；只有原期限内的 `issued` 状态返回原凭据，过期、未知或未确认会返回原标识、类型、查询建议和 `retryable=false`。冲突保持冲突，不将不同参数恢复成另一项请求。凭据敏感，不放入聊天或日志。
+- 保存遭遇限流时保留已上传对象和同一笔记 `client_request_id`，不要重新上传；`pending` / `processing` 不等于完成。
 - `GETNOTE_API_URL` 可传站点根地址、`/open` 或完整 `/open/api/v1`；未设置时仍使用生产地址。
 
 ## 🚀 进阶用法：用笔记内链实践柳比歇夫时间日志法
@@ -287,6 +293,7 @@ Get your API Key and Client ID at [得到大脑（Get笔记）开放平台](http
 
 | 日期 | 版本 | 新能力 | 适合怎么用 |
 |------|------|--------|------------|
+| 2026-11-04 | **v1.11.0** | 限流排队与安全原请求重试；原上传操作恢复；兼容旧服务能力接口；图片传输支持取消、超时并禁止重定向重传 | 并发任务遵守实际账号预算，响应不确定时核对原凭证和对象，不重复签发 |
 | 2026-10-13 | **v1.9.1** | 修复订阅查询中布尔筛选字段被误判为非法响应的问题；明确书名与作者参数 | 正常查询订阅书库，保留作者等筛选条件的严格校验 |
 | 2026-10-13 | **v1.9.0** | 支持书库身份、引用来源和时间筛选，保留分页及元数据 | 按来源找到笔记，通过详情读取全文，区分划线原文与评论 |
 | 2026-09-24 | **v1.8.0** | 独立读取标记、发芽、章节时间线；支持知识库文件能力、临时上传凭据与入库 | 云 MCP 配合本地 CLI 上传文件，无需重复授权 |

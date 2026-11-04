@@ -20,6 +20,11 @@ import { OPENAPI_MEMBERSHIP_PURCHASE_URL } from "./membership.js";
 import { readFileSync, realpathSync } from "node:fs";
 import { join, resolve, isAbsolute, sep } from "node:path";
 
+const operationIDSchema={type:'string',pattern:'^[A-Za-z0-9._:-]{1,128}$',minLength:1,maxLength:128,description:'可选的原上传操作标识；恢复时必须复用。仅服务器协商支持时可用，不支持时明确失败。'};
+const recoveryDescription='保留已上传对象和同一笔记 client_request_id；保存遇限流不要重新上传。凭据敏感，不得放进聊天、日志或命令参数。任务 pending/processing 不等于完成。恢复仅查询原 operation_id，不能自动申请新 key。';
+const operationIDInput=z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/);
+
+
 const pkg = JSON.parse(
   readFileSync(join(__dirname, "..", "package.json"), "utf-8")
 ) as { version: string };
@@ -534,13 +539,23 @@ const TOOLS: Tool[] = [
     inputSchema: { type: "object", properties: {} },
   },
   {
+    name: "get_knowledge_file_upload_operation",
+    description: "仅查询原知识库文件上传凭据操作。"+recoveryDescription,
+    inputSchema:{type:'object',properties:{operation_id:operationIDSchema},required:['operation_id']},
+  },
+  {
+    name: "get_upload_operation",
+    description: "仅查询原图片上传凭据操作。"+recoveryDescription,
+    inputSchema:{type:'object',properties:{operation_id:operationIDSchema},required:['operation_id']},
+  },
+  {
     name: "get_knowledge_file_upload_token",
-    description: "获取一次 OSS 文件上传临时凭据。通过本地 getnote upload --token-file <file> --max-size-bytes <能力上限> 直接 PUT 到 OSS，无需再次 CLI 登录。凭据通过受控文件或 stdin 传入，不写命令参数或聊天；不要把文件字节传给云 MCP。",
-    inputSchema: { type: "object", properties: { mime_type: { type: "string", description: "能力接口返回的扩展名，如 HTML" } }, required: ["mime_type"] },
+    description: recoveryDescription+"获取一次 OSS 文件上传临时凭据。通过本地 getnote upload --token-file <file> --max-size-bytes <能力上限> 直接 PUT 到 OSS，无需再次 CLI 登录。凭据通过受控文件或 stdin 传入，不写命令参数或聊天；不要把文件字节传给云 MCP。",
+    inputSchema: { type: "object", properties: { mime_type: { type: "string", description: "能力接口返回的扩展名，如 HTML" },operation_id:operationIDSchema }, required: ["mime_type"] },
   },
   {
     name: "upload_knowledge_file",
-    description: "OSS 直传成功后将原文件加入知识库，只接收元数据，不接收本地路径或 base64。返回处理中的资源不等于入库成功；用 list_topic_directories 查询同一 ID，直到 SUCCESS 或 FAIL。",
+    description: recoveryDescription+"OSS 直传成功后将原文件加入知识库，只接收元数据，不接收本地路径或 base64。返回处理中的资源不等于入库成功；用 list_topic_directories 查询同一 ID，直到 SUCCESS 或 FAIL。",
     inputSchema: { type: "object", additionalProperties: false, properties: { topic_id: { type: "string" }, directory_id: { type: "string" }, file_name: { type: "string" }, file_type: { type: "string" }, md5: { type: "string" }, url: { type: "string" } }, required: ["topic_id", "directory_id", "file_name", "file_type", "md5", "url"] },
   },
   // ── Image ──
@@ -557,10 +572,11 @@ const TOOLS: Tool[] = [
   {
     name: "get_upload_token",
     description:
-      "获取 OSS 图片上传凭证。返回 accessid/host/policy/signature 等字段，用于 multipart/form-data POST 上传图片到阿里云 OSS。上传成功后获取 image_id，再用 save_note 创建图片笔记。⚠️ mime_type 必须与实际文件格式一致，否则 OSS 签名失败。",
+      recoveryDescription+"获取 OSS 图片上传凭证。返回 accessid/host/policy/signature 等字段，用于 multipart/form-data POST 上传图片到阿里云 OSS。上传成功后获取 image_id，再用 save_note 创建图片笔记。⚠️ mime_type 必须与实际文件格式一致，否则 OSS 签名失败。",
     inputSchema: {
       type: "object" as const,
       properties: {
+        operation_id:operationIDSchema,
         mime_type: {
           type: "string",
           enum: ["jpg", "png", "gif", "webp", "jpeg"],
@@ -578,10 +594,11 @@ const TOOLS: Tool[] = [
   {
     name: "upload_image",
     description:
-      "上传图片到 OSS。返回 image_url（用于创建图片笔记的 image_urls 参数）。",
+      recoveryDescription+"上传图片到 OSS。返回 image_url（用于创建图片笔记的 image_urls 参数）。",
     inputSchema: {
       type: "object" as const,
       properties: {
+        operation_id:operationIDSchema,
         image_path: {
           type: "string",
           description:
@@ -1007,7 +1024,9 @@ async function handleTool(
     case "list_sprouts": return client.listSprouts(z.string().regex(/^\d{4}-\d{2}$/).parse(input.month), z.string().optional().parse(input.since_id), z.number().int().min(1).max(20).optional().parse(input.limit));
     case "get_sprout": return client.getSprout(z.string().min(1).parse(input.id));
     case "get_knowledge_file_capabilities": return client.getKnowledgeFileCapabilities();
-    case "get_knowledge_file_upload_token": return client.getKnowledgeFileUploadToken(z.string().min(1).parse(input.mime_type));
+    case "get_upload_operation": return client.getUploadOperation(operationIDInput.parse(input.operation_id));
+    case "get_knowledge_file_upload_operation": return client.getKnowledgeFileUploadOperation(operationIDInput.parse(input.operation_id));
+    case "get_knowledge_file_upload_token": return client.getKnowledgeFileUploadToken(z.string().min(1).parse(input.mime_type),operationIDInput.optional().parse(input.operation_id));
     case "upload_knowledge_file": return client.uploadKnowledgeFile(z.object({ topic_id:z.string().min(1), directory_id:z.string().regex(/^\d+$/), file_name:z.string().min(1), file_type:z.string().min(1), md5:z.string().regex(/^[a-fA-F0-9]{32}$/), url:z.string().url() }).strict().parse(input));
     case "get_upload_config": {
       return client.getUploadConfig();
@@ -1016,6 +1035,7 @@ async function handleTool(
       return client.getUploadToken({
         mime_type: input.mime_type as string | undefined,
         count: input.count as number | undefined,
+        operation_id:operationIDInput.optional().parse(input.operation_id),
       });
     }
     case "upload_image": {
@@ -1035,11 +1055,13 @@ async function handleTool(
 
       // mime_type 传扩展名格式（如 png、jpg）
       const mimeType = (input.mime_type as string) || "png";
-      const result = await client.uploadImage(imageData, mimeType);
+      const result = await client.uploadImage(imageData, mimeType,operationIDInput.optional().parse(input.operation_id));
       return { 
         success: true, 
         image_url: result.access_url,  // 用于创建图片笔记
-        image_id: result.image_id      // OSS 回调返回的 ID
+        image_id: result.image_id,      // OSS 回调返回的 ID
+        operation_id:result.operation_id,
+        resume_until:result.resume_until
       };
     }
 
@@ -1187,6 +1209,11 @@ async function main() {
           expected_type: err.expectedType,
           supported_values: err.supportedValues,
           retry_after_seconds: err.retryAfterSeconds,
+          rate_limit_detail: err.rateLimitDetail,
+          operation_id:err.operationId,
+          upload_kind:err.uploadKind,
+          recovery_advice:err.recoveryAdvice,
+          query_tool:err.queryTool,
         };
         if (err.code === 10201) {
           errPayload.membership_url = OPENAPI_MEMBERSHIP_PURCHASE_URL;

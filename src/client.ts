@@ -1,7 +1,11 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 import { discoveryContract, verifyDiscovery, NoteDiscoveryOptions, LookupOptions, DiscoveryKind } from "./discovery";
 import {BatchDetailOptions,SearchOptions,normalizeBatch,validateSearchOptions,verifyExperience} from "./experience";
-import {readRetryDelay,waitForReadRetry} from "./read-retry";
+import {readRetryDelay,waitForReadRetry,operationBucket} from "./read-retry";
+
+import {authorizationIdentity,inAuthorizationQueue,learnPolicy,learnRate,learnCooldown,pace} from "./admission";
+
+import {UploadKind,UploadRuntime,UploadOperation,uploadRoutes,validateOperationID,supportsRecovery,newOperationID} from "./upload-operation";
 
 const DEFAULT_BASE_URL = "https://openapi.biji.com/open/api/v1";
 
@@ -52,6 +56,10 @@ export function parseJsonPreservingLargeIntegerStrings(data: unknown) {
 export class GetNoteAPIError extends Error {
   httpStatus?:number;
   waitProvided=false;
+  operationId?:string;
+  uploadKind?:UploadKind;
+  recoveryAdvice?:string;
+  queryTool?:string;
   constructor(
     public readonly code: number,
     public readonly reason: string,
@@ -62,7 +70,8 @@ export class GetNoteAPIError extends Error {
     public readonly constraint?: string,
     public readonly expectedType?: string,
     public readonly supportedValues?: string[],
-    public readonly retryAfterSeconds?: number
+    public readonly retryAfterSeconds?: number,
+    public readonly rateLimitDetail?: unknown
   ) {
     super(message);
     this.name = "GetNoteAPIError";
@@ -70,7 +79,7 @@ export class GetNoteAPIError extends Error {
 }
 
 function apiFailure(err:APIErrorBody|undefined,requestID:string|undefined,status:number,header:unknown):GetNoteAPIError {
-  return Object.assign(new GetNoteAPIError(err?.code??-1,err?.reason??"unknown",err?.message??"API request failed",requestID,err?.retryable??false,err?.field,err?.constraint,err?.expected_type,err?.supported_values,retryAfterSeconds(err?.retry_after_seconds,header)),{httpStatus:status,waitProvided:err?.retry_after_seconds!==undefined||header!==undefined});
+  return Object.assign(new GetNoteAPIError(err?.code??-1,err?.reason??"unknown",err?.message??"API request failed",requestID,err?.retryable??false,err?.field,err?.constraint,err?.expected_type,err?.supported_values,retryAfterSeconds(err?.retry_after_seconds,header),err?.rate_limit_detail),{httpStatus:status,waitProvided:err?.retry_after_seconds!==undefined||header!==undefined});
 }
 
 export class GetNoteClient {
@@ -84,16 +93,98 @@ export class GetNoteClient {
     return this.request<unknown>("GET", "/resource/note/sprout", { id });
   }
   async getKnowledgeFileCapabilities() {
-    return this.request<unknown>("GET", "/resource/knowledge/file/capabilities");
+    return this.uploadConfiguration('file');
   }
-  async getKnowledgeFileUploadToken(mime_type: string) {
-    return this.request<unknown>("GET", "/resource/knowledge/file/upload_token", { mime_type });
+  async getKnowledgeFileUploadToken(mime_type: string,operation_id?:string) {
+    return this.uploadCredential('file',{mime_type},operation_id);
   }
+  async getKnowledgeFileUploadOperation(operation_id:string){return this.getOperation('file',operation_id)}
+  async getUploadOperation(operation_id:string){return this.getOperation('image',operation_id)}
   async uploadKnowledgeFile(data: { topic_id: string; directory_id: string; file_name: string; file_type: string; md5: string; url: string }) {
     return this.request<unknown>("POST", "/resource/knowledge/file/upload", undefined, data);
   }
   private http: AxiosInstance;
   private requestSignal?:AbortSignal;
+  private identity:string;
+  private uploadRuntimeCache:Partial<Record<UploadKind,{runtime?:UploadRuntime;at:number}>>={};
+
+  private async uploadConfiguration(kind:UploadKind,allowRetry=true){
+    const path=uploadRoutes[kind]+(kind==='image'?'/config':'/capabilities');
+    const config=await this.request<Record<string,unknown>>('GET',path,undefined,undefined,undefined,allowRetry);
+    this.uploadRuntimeCache[kind]={runtime:config?.runtime as UploadRuntime|undefined,at:Date.now()};
+    return config;
+  }
+  private async recoveryRuntime(kind:UploadKind):Promise<UploadRuntime|undefined>{
+    if(!this.uploadRuntimeCache[kind]||Date.now()-this.uploadRuntimeCache[kind]!.at>5*60*1000){
+      try {await this.uploadConfiguration(kind,false)}catch(error){
+        // Old servers may omit config. File capabilities additionally require
+        // topic.read, while a topic.write-only grant may still issue once without
+        // claiming replay support. Explicit operation IDs still fail unsupported.
+        if(error instanceof GetNoteAPIError&&(error.httpStatus===404||kind==='file'&&error.httpStatus===403))this.uploadRuntimeCache[kind]={at:Date.now()};
+        else throw error;
+      }
+    }
+    return this.uploadRuntimeCache[kind]?.runtime;
+  }
+  private operationAdvice(error:GetNoteAPIError,kind:UploadKind,id:string):GetNoteAPIError {
+    error.operationId=id;error.uploadKind=kind;
+    error.recoveryAdvice='Keep the original operation_id and query the original upload operation; do not mint a new key or upload again. Preserve uploaded objects and the same note client_request_id after save rate limits. Pending tasks are not complete.';
+    error.queryTool=kind==='image'?'get_upload_operation':'get_knowledge_file_upload_operation';
+    return error;
+  }
+  private operationFailure(kind:UploadKind,id:string,reason:string,original?:GetNoteAPIError):GetNoteAPIError {
+    const error=new GetNoteAPIError(original?.code??-1,reason,'Original upload operation is not confirmed or no longer recoverable; query its original operation_id.',original?.requestId,false,original?.field,original?.constraint,original?.expectedType,original?.supportedValues,original?.retryAfterSeconds,original?.rateLimitDetail);
+    error.httpStatus=original?.httpStatus;
+    return this.operationAdvice(error,kind,id);
+  }
+  private usableCredential(kind:UploadKind,id:string,value:unknown,outerDeadline?:string,original?:GetNoteAPIError):Record<string,unknown> {
+    if(!value||typeof value!=='object'||Array.isArray(value))throw this.operationFailure(kind,id,'credential_operation_unconfirmed',original);
+    const credential=value as Record<string,unknown>;
+    if(credential.operation_id!==undefined&&credential.operation_id!==id)throw this.operationFailure(kind,id,'credential_operation_conflict',original);
+    let deadline=outerDeadline;
+    if(credential.resume_until!==undefined){
+      if(typeof credential.resume_until!=='string'||!Number.isFinite(Date.parse(credential.resume_until)))throw this.operationFailure(kind,id,'credential_operation_unconfirmed',original);
+      if(deadline===undefined||Date.parse(credential.resume_until)<Date.parse(deadline))deadline=credential.resume_until;
+    }
+    if(deadline===undefined||!Number.isFinite(Date.parse(deadline)))throw this.operationFailure(kind,id,'credential_operation_unconfirmed',original);
+    if(Date.parse(deadline)<=Date.now())throw this.operationFailure(kind,id,'credential_operation_expired',original);
+    return {...credential,operation_id:id,resume_until:deadline};
+  }
+  private async lookupOperation(kind:UploadKind,id:string,original?:GetNoteAPIError):Promise<UploadOperation>{
+    let view:UploadOperation;
+    try {view=await this.request<UploadOperation>('GET',uploadRoutes[kind]+'/upload_operation',{operation_id:id})}
+    catch(error){throw this.operationFailure(kind,id,error instanceof GetNoteAPIError?error.reason:'credential_operation_unconfirmed',original??(error instanceof GetNoteAPIError?error:undefined))}
+    const deadline=Date.parse(view?.resume_until);
+    if(view?.operation_id!==id||view.state!=='issued'||!Number.isFinite(deadline)||deadline<=Date.now()||!view.credential||typeof view.credential!=='object'||Array.isArray(view.credential)){
+      throw this.operationFailure(kind,id,view?.state==='expired'||Number.isFinite(deadline)&&deadline<=Date.now()?'credential_operation_expired':'credential_operation_unconfirmed',original);
+    }
+    const credential=this.usableCredential(kind,id,view.credential,view.resume_until,original);
+    return {...view,resume_until:credential.resume_until as string,credential};
+  }
+  private async getOperation(kind:UploadKind,operation_id:string){
+    validateOperationID(operation_id);
+    if(!supportsRecovery(await this.recoveryRuntime(kind),kind))throw this.operationFailure(kind,operation_id,'upload_operation_unsupported');
+    return this.lookupOperation(kind,operation_id);
+  }
+  private async uploadCredential(kind:UploadKind,params:Record<string,unknown>,operation_id?:string):Promise<Record<string,unknown>>{
+    if(operation_id!==undefined)validateOperationID(operation_id);
+    const supported=supportsRecovery(await this.recoveryRuntime(kind),kind);
+    if(!supported){
+      if(operation_id!==undefined)throw this.operationFailure(kind,operation_id,'upload_operation_unsupported');
+      return this.request('GET',uploadRoutes[kind]+'/upload_token',params);
+    }
+    const id=operation_id??newOperationID();
+    try {
+      const credential=await this.request<Record<string,unknown>>('GET',uploadRoutes[kind]+'/upload_token',params,undefined,{'Idempotency-Key':id});
+      return this.usableCredential(kind,id,credential);
+    }catch(error){
+      if(error instanceof GetNoteAPIError){
+        if(!['credential_operation_unconfirmed','credential_operation_unavailable','unexpected_http_response'].includes(error.reason))throw this.operationAdvice(error,kind,id);
+      }else if(this.requestSignal?.aborted){throw this.operationFailure(kind,id,'credential_operation_unconfirmed')}
+      const recovered=await this.lookupOperation(kind,id,error instanceof GetNoteAPIError?error:undefined);
+      return {...recovered.credential,operation_id:id,resume_until:recovered.resume_until};
+    }
+  }
 
   withSignal(signal:AbortSignal):GetNoteClient {
     // Per-call view shares the HTTP transport, never another call's signal.
@@ -101,16 +192,29 @@ export class GetNoteClient {
   }
 
   constructor(apiKey: string, clientId: string, baseURL?: string) {
+    const normalized=normalizeBaseURL(baseURL || process.env.GETNOTE_API_URL);
+    this.identity=authorizationIdentity(normalized,`Bearer ${apiKey}`,clientId);
     this.http = axios.create({
-      baseURL: normalizeBaseURL(baseURL || process.env.GETNOTE_API_URL),
+      baseURL: normalized,
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "X-Client-ID": clientId,
         "Content-Type": "application/json",
       },
       timeout: 30000,
+      // Credential GETs issue side effects: redirects must not bypass the
+      // negotiated operation or the single-issuance recovery path.
+      maxRedirects: 0,
     });
-    this.http.defaults.transformResponse = [parseJsonPreservingLargeIntegerStrings];
+    this.http.defaults.transformResponse = [(data, _headers, status) => {
+      try { return parseJsonPreservingLargeIntegerStrings(data); }
+      catch (error) {
+        // A legacy missing route may return plain text or HTML. Preserve its
+        // verified HTTP status instead of losing it to a JSON SyntaxError.
+        if (status !== undefined && status >= 300) return data;
+        throw error;
+      }
+    }];
 
     this.http.interceptors.response.use(
       (res) => res,
@@ -121,30 +225,51 @@ export class GetNoteClient {
   }
 
   private async request<T>(
-    method:"GET"|"POST",path:string,params?:Record<string,unknown>,data?:unknown
+    method:"GET"|"POST",path:string,params?:Record<string,unknown>,data?:unknown,headers?:Record<string,string>,allowRetry=true
   ):Promise<T>{
-    let waited=0;let lastError:GetNoteAPIError|undefined;
-    for(let attempt=0;;attempt++){
-      try {
-        this.requestSignal?.throwIfAborted();
-        return await this.requestOnce<T>(method,path,params,data);
-      }catch(err){
-        if(this.requestSignal?.aborted&&lastError)throw Object.assign(lastError,{cause:this.requestSignal.reason});
-        if(!(err instanceof GetNoteAPIError))throw err;
-        const delay=readRetryDelay(method,path,err,attempt,waited);
-        if(delay===undefined)throw err;
-        lastError=err;const start=performance.now();
-        try {await waitForReadRetry(delay,this.requestSignal)}catch(cause){throw Object.assign(err,{cause})}
-        waited+=performance.now()-start;
+    // Snapshot caller-owned values once, before waiting or retrying.
+    params=params===undefined?undefined:structuredClone(params);
+    data=data===undefined?undefined:structuredClone(data);
+    return inAuthorizationQueue(this.identity,this.requestSignal,async queue=>{
+      let waited=0;let lastError:GetNoteAPIError|undefined;let pacingBudgetExceeded=false;
+      for(let attempt=0;;attempt++){
+        try {
+          this.requestSignal?.throwIfAborted();
+          const pacingStarted=performance.now();
+          if(!await pace(queue,operationBucket(method,path),this.requestSignal,lastError?5000-waited:Infinity)){pacingBudgetExceeded=true;throw lastError;}
+          if(lastError)waited+=performance.now()-pacingStarted;
+          const result=await this.requestOnce<T>(method,path,params,data,headers);
+          learnPolicy(queue,result);
+          return result;
+        }catch(err){
+          if(this.requestSignal?.aborted&&lastError)throw Object.assign(lastError,{cause:this.requestSignal.reason});
+          if(pacingBudgetExceeded||!(err instanceof GetNoteAPIError))throw err;
+          const detail=err.rateLimitDetail as Record<string,unknown>|null;
+          if(detail&&typeof detail==='object'&&detail.dimension==='qps')learnRate(queue,detail.bucket,detail.sustained_rate_per_second);
+          const qps=detail?.dimension==='qps'||err.rateLimitDetail===undefined&&((err.code===10202&&['qps_exceeded','qps_global_exceeded','qps_bucket_exceeded'].includes(err.reason))||(err.code===10005&&err.reason==='rate_limited'));
+          if(qps){
+            const bucket=typeof detail?.bucket==='string'&&['global','read','write','write_note','upload_credential'].includes(detail.bucket)?detail.bucket:err.reason==='qps_global_exceeded'?'global':operationBucket(method,path);
+            const waits=[0];
+            if(err.retryAfterSeconds!==undefined)waits.push(err.retryAfterSeconds*1000);
+            for(const [key,scale]of [['retry_after_ms',1],['retry_after_seconds',1000]] as const){const value=detail?.[key];if(typeof value==='number'&&Number.isSafeInteger(value)&&value>=0)waits.push(value*scale)}
+            learnCooldown(queue,bucket,Math.max(...waits));
+          }
+          const delay=allowRetry?readRetryDelay(method,path,err,attempt,waited,headers?.['Idempotency-Key']):undefined;
+          if(delay===undefined)throw err;
+          lastError=err;const start=performance.now();
+          try {await waitForReadRetry(delay,this.requestSignal)}catch(cause){throw Object.assign(err,{cause})}
+          waited+=performance.now()-start;
+        }
       }
-    }
+    });
   }
 
   private async requestOnce<T>(
     method: "GET" | "POST",
     path: string,
     params?: Record<string, unknown>,
-    data?: unknown
+    data?: unknown,
+    headers?:Record<string,string>
   ): Promise<T> {
     const kinds: Record<string, DiscoveryKind> = { "/resource/note/list": "notes", "/resource/note/detail": "detail", "/resource/knowledge/notes": "topicNotes", "/resource/knowledge/list": "topics", "/resource/knowledge/subscribe/list": "topics", "/resource/reference/list":"references" };
     const contract = method === "GET" && kinds[path] ? discoveryContract(kinds[path], params || {}) : undefined;
@@ -162,6 +287,7 @@ export class GetNoteClient {
         params,
         data,
         signal:this.requestSignal,
+        headers,
       });
 
       const body = res.data;
@@ -189,7 +315,10 @@ export class GetNoteClient {
         if (body?.error) {
           throw apiFailure(body.error,body.request_id,err.response.status,err.response.headers["retry-after"]);
         }
-        throw new Error(`HTTP ${err.response.status}: ${err.message}`);
+        throw apiFailure(
+          {code: -1, reason: 'unexpected_http_response', message: `HTTP ${err.response.status}: API response unavailable`},
+          undefined, err.response.status, err.response.headers["retry-after"]
+        );
       }
 
       throw err;
@@ -260,18 +389,12 @@ export class GetNoteClient {
   // ─── Image ───────────────────────────────────────────────────────────────
 
   async getUploadConfig() {
-    return this.request<GetUploadConfigResp>(
-      "GET",
-      "/resource/image/config"
-    );
+    return this.uploadConfiguration('image') as unknown as Promise<GetUploadConfigResp>;
   }
 
-  async getUploadToken(params: { count?: number; mime_type?: string }) {
-    return this.request<GetUploadTokenResp>(
-      "GET",
-      "/resource/image/upload_token",
-      { count: params.count, mime_type: params.mime_type }
-    );
+  async getUploadToken(params: { count?: number; mime_type?: string;operation_id?:string }) {
+    const credential=await this.uploadCredential('image',{count:params.count,mime_type:params.mime_type},params.operation_id);
+    return credential as unknown as GetUploadTokenResp;
   }
 
   /**
@@ -302,6 +425,9 @@ export class GetNoteClient {
 
     const response = await axios.post(token.host, form, {
       headers: form.getHeaders(),
+      signal: this.requestSignal,
+      timeout: 30000,
+      maxRedirects: 0,
       maxBodyLength: Infinity,
       validateStatus: () => true,
     });
@@ -326,16 +452,22 @@ export class GetNoteClient {
    */
   async uploadImage(
     imageData: Buffer | Uint8Array,
-    mimeType: string = "png"
-  ): Promise<{ image_id: string; access_url: string }> {
+    mimeType: string = "png",
+    operation_id?:string
+  ): Promise<{ image_id: string; access_url: string;operation_id?:string;resume_until?:string }> {
     // 1. 获取上传凭证（现在直接返回单个对象）
-    const token = await this.getUploadToken({ mime_type: mimeType });
+    const token = await this.getUploadToken({ mime_type: mimeType,operation_id });
 
     // 2. 上传到 OSS
-    const { image_id } = await this.uploadImageToOSS(token, imageData);
+    let image_id:string;
+    try {({image_id}=await this.uploadImageToOSS(token,imageData))}
+    catch(error){
+      if(token.operation_id)throw this.operationFailure('image',token.operation_id,'upload_result_unconfirmed');
+      throw error;
+    }
 
-    // 3. 返回结果
-    return { image_id, access_url: token.access_url };
+    // 3. Preserve the original operation, never print the credential itself.
+    return { image_id, access_url: token.access_url,operation_id:token.operation_id,resume_until:token.resume_until };
   }
 
   // ─── Knowledge / Topics ─────────────────────────────────────────────────
@@ -686,10 +818,13 @@ export interface DeleteNoteTagResp {
 export interface GetUploadConfigResp {
   support_extensions: string[];
   max_size_bytes: number;
+  runtime?:UploadRuntime;
 }
 
 // OSS 上传凭证（与 Web 端格式一致）
 export interface ImageUploadToken {
+  operation_id?:string;
+  resume_until?:string;
   accessid: string;
   host: string;
   policy: string;
@@ -937,6 +1072,7 @@ interface APIErrorBody {
   expected_type?: string;
   supported_values?: string[];
   retry_after_seconds?: number;
+  rate_limit_detail?:unknown;
 }
 
 export interface UpdateNoteResp {
