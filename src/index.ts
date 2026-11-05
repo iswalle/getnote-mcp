@@ -1187,11 +1187,15 @@ async function main() {
 
     try {
       const result = await handleTool(name, input, client.withSignal(extra.signal));
+      const batch = result as { failed_note_ids?: unknown[] } | null;
+      const rejected = (name === "batch_add_notes_to_topic" || name === "remove_note_from_topic")
+        && Array.isArray(batch?.failed_note_ids) && batch.failed_note_ids.length > 0;
       return {
+        ...(rejected ? { isError: true } : {}),
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(result, null, 2),
+            text: JSON.stringify(rejected ? { ...result as object, error: true, reason: "knowledge_notes_rejected", retryable: false, message: "Some notes were rejected; inspect failed_note_ids and the actual success count. Do not retry the entire batch." } : result, null, 2),
           },
         ],
       };
