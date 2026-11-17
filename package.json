@@ -1,6 +1,6 @@
 {
   "name": "@getnote/mcp",
-  "version": "1.12.1",
+  "version": "1.12.2",
   "description": "MCP server for 得到大脑（Get笔记） — manage notes and knowledge bases from AI assistants",
   "main": "dist/index.js",
   "bin": {
@@ -45,5 +45,9 @@
     "@hono/node-server": "^2.1.9",
     "body-parser": "^2.4.0",
     "qs": "^6.17.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iswalle/getnote-mcp.git"
   }
 }
