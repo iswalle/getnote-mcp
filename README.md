@@ -27,12 +27,12 @@ npm install -g @getnote/mcp
 - 用户说「帮我记一下」「保存到笔记」「记录下来」→ `save_note`
 - 用户说「改一下这个笔记」「更新笔记内容」→ `update_note`
 - 用户说「查一下我的笔记」「找找之前的笔记」→ `list_notes`
-- 用户说「搜一下」「找找我哪些笔记提到了 XX」→ `recall`
-- 用户说「在 XX 知识库搜一下」→ `recall_knowledge`
+- 用户说「搜一下」「找找我哪些笔记提到了 XX」→ `search_account_content`
+- 用户说「在 XX 知识库搜一下」→ `search_knowledge_base`
 - 用户分享了一个链接，说「保存这个」→ `save_note`（链接笔记）
 - 用户说「给这个笔记加个标签」→ `add_note_tags`
 - 用户说「读这条链接笔记原文 / 读取会议转写」→ `get_note_original` / `get_note_transcript`
-- 用户说「把笔记放进知识库的某个文件夹」→ `list_topic_directories` + `batch_add_notes_to_topic`
+- 用户说「把笔记放进知识库的某个文件夹」→ `list_knowledge_base_directories` + `batch_add_notes_to_topic`
 - 用户说「订阅这个抖音博主」→ `follow_topic_blogger`
 
 ## Features
@@ -43,7 +43,9 @@ Exposes the following tools to AI models:
 |------|-------------|
 | `list_notes` | 获取笔记列表（游标分页） |
 | `list_reference_resources` | 按课程名/老师定位有个人笔记的课程容器 |
-| `get_notes` | 单次后端批量读取最多20条个人笔记正文，保留预算与逐条状态 |
+| `batch_get_notes` | 单次后端批量读取最多20条个人笔记正文，保留预算与逐条状态 |
+| `get_note_outline` | 获取长笔记目录、UTF-16 偏移和版本 |
+| `read_note_section` | 按目录位置或字面关键词读取有界节选 |
 | `get_note` | 获取笔记详情（支持 `image_quality=original` 获取原图） |
 | `get_note_original` | 按笔记类型直接读取原文 |
 | `get_note_transcript` | 直接读取录音、会议或课堂转写 |
@@ -64,14 +66,14 @@ Exposes the following tools to AI models:
 | `delete_note` | 删除笔记（移入回收站） |
 | `add_note_tags` | 添加笔记标签 |
 | `delete_note_tag` | 删除笔记标签 |
-| `recall` | 全局语义搜索（在所有笔记中搜索） |
-| `recall_knowledge` | 知识库语义搜索（在指定知识库中搜索） |
-| `list_topics` | 获取知识库列表，默认 DEFAULT，可指定 scope |
+| `search_account_content` | 全局语义搜索（在所有笔记中搜索） |
+| `search_knowledge_base` | 知识库语义搜索（在指定知识库中搜索） |
+| `list_knowledge_bases` | 获取知识库列表，默认 DEFAULT，可指定 scope |
 | `create_topic` | 创建知识库 |
-| `list_topic_notes` | 获取知识库笔记列表 |
+| `list_knowledge_base_notes` | 获取知识库笔记列表 |
 | `batch_add_notes_to_topic` | 批量添加笔记到知识库 |
 | `remove_note_from_topic` | 从知识库移除笔记 |
-| `list_topic_directories` | 浏览知识库文件夹及资源 |
+| `list_knowledge_base_directories` | 浏览知识库文件夹及资源 |
 | `create_topic_directory` | 创建知识库文件夹 |
 | `update_topic_directory` | 重命名或移动知识库文件夹 |
 | `delete_topic_directory` | 删除空知识库文件夹 |
@@ -79,16 +81,16 @@ Exposes the following tools to AI models:
 | `get_upload_token` | 获取图片上传凭证；可传原 `operation_id` |
 | `get_upload_operation` | 查询原图片上传凭据操作，避免重复申请 |
 | `upload_image` | 完整图片上传（自动获取凭证 + 上传到 OSS）|
-| `list_topic_bloggers` | 获取知识库订阅的博主列表 |
+| `list_knowledge_base_bloggers` | 获取知识库订阅的博主列表 |
 | `follow_topic_blogger` | 订阅抖音博主到知识库 |
-| `list_topic_blogger_contents` | 获取博主内容列表（摘要） |
+| `list_knowledge_base_blogger_contents` | 获取博主内容列表（摘要） |
 | `get_blogger_content_detail` | 获取博主内容详情（含原文） |
-| `list_topic_lives` | 获取知识库已完成直播列表 |
+| `list_knowledge_base_lives` | 获取知识库已完成直播列表 |
 | `get_live_detail` | 获取直播详情（含 AI 摘要和原文转写） |
 | `get_quota` | 查询 API 调用配额 |
 | `share_note` | 生成笔记分享链接 |
 | `follow_topic_live` | 在知识库里订阅得到直播 |
-| `list_subscribe_topics` | 获取真实订阅的他人知识库，默认 DEFAULT，可指定 scope |
+| `list_subscribed_knowledge_bases` | 获取真实订阅的他人知识库，默认 DEFAULT，可指定 scope |
 
 ## Usage
 
@@ -169,13 +171,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ## 查找笔记与书库
 
-- 书名用 `list_topics` 的 `query`，作者用 `author`，并指定 `scope: "BOOKSPACE"`。两者同时传入时须同时匹配；订阅书库使用 `list_subscribe_topics`。
-- 书库定位后用 `list_topic_notes` 读取笔记。用户要全部笔记时不默认加 `note_type: "ref"`；仅要划线或摘录时再加。
+- 书名用 `list_knowledge_bases` 的 `query`，作者用 `author`，并指定 `scope: "BOOKSPACE"`。两者同时传入时须同时匹配；订阅书库使用 `list_subscribed_knowledge_bases`。
+- 书库定位后用 `list_knowledge_base_notes` 读取笔记。用户要全部笔记时不默认加 `note_type: "ref"`；仅要划线或摘录时再加。
 - 本分支增加 `list_reference_resources`：source=dedao、resource_type=course，query仅匹配课程名exact/prefix，author精确匹配老师，两者AND且至少一个。由返回course_type+course_id调用 `list_notes` 的 reference_course_type/reference_course_id；当前66，包含课程直接引用及所属课节。旧reference_resource_id仍是原课节ID，组合按交集；course+topic_id与课程内语义搜索尚未开放。
 - 新请求核对当前接口 capabilities/applied_filters，不把本地安装当作服务已发布，不接受旧服务忽略课程条件的成功结果。课程目录允许空结果页has_more=true，继续真实next_cursor；只有完成当前授权范围的遍历才能说已查全。
 - 列表用于定位；完整内容调用 `get_note`，引用原文调用 `get_note_original`。引用笔记的 `ref_content` 是原文，`content` 是个人评论。
-- 少量个人笔记可用 `get_notes` 的ids字符串数组，最多20个去重ID，默认content/ref_content/reference；original显式请求。默认32000/上限64000个Unicode码点及1MiB，成功项完整，deferred_budget整条待读，保留pending_ids/partial，不自动并发20次详情，不开放知识库共享权限。未知未来字段与状态原样保留。
-- `recall` / `recall_knowledge` 显式传response_mode=snippet，可选max_snippet_chars=100..1000（默认400），核对search.snippet.v1，保留snippet_source/truncated/content_state；full指完整命中片段，不是全文。旧调用不传新参数保持原正文和top_k语义。
+- 少量个人笔记可用 `batch_get_notes` 的ids字符串数组，最多20个去重ID，默认content/ref_content/reference；original显式请求。默认32000/上限64000个Unicode码点及1MiB，成功项完整，deferred_budget整条待读，保留pending_ids/partial，不自动并发20次详情，不开放知识库共享权限。未知未来字段与状态原样保留。
+- `search_account_content` / `search_knowledge_base` 显式传response_mode=snippet，可选max_snippet_chars=100..1000（默认400），核对search.snippet.v1，保留snippet_source/truncated/content_state；full指完整命中片段，不是全文。旧调用不传新参数保持原正文和top_k语义。
 - 按响应的 `pagination.next_page` / `next_cursor` 继续，保持筛选条件；只有遍历完成才能说全部找到。语义搜索 Top-K 不代表全量，搜索为空也不能证明没有相关笔记。
 
 ## 独立报告与知识库文件
@@ -183,7 +185,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 - 标记 `get_note_marks`、发芽 `list_sprouts` / `get_sprout`、章节 `get_note_chapters` 与录音 `get_note_timeline` 独立读取。
 - 文件上传前调用 `get_knowledge_file_capabilities` 获取格式、大小、页数与额度限制。
 - `get_knowledge_file_upload_token` 获取临时凭据，本机用 CLI 1.6.0+ 的 `getnote upload <文件> --token-file <受控文件> --max-size-bytes <能力上限>` 直传 OSS，无需 CLI 再登录。
-- `upload_knowledge_file` 提交文件元数据；用 `list_topic_directories` 确认同一资源达到 `SUCCESS`。OSS 上传完成不等于解析完成。凭据不出现在聊天或命令参数中。
+- `upload_knowledge_file` 提交文件元数据；用 `list_knowledge_base_directories` 确认同一资源达到 `SUCCESS`。OSS 上传完成不等于解析完成。凭据不出现在聊天或命令参数中。
 
 ## 图片上传流程
 
@@ -251,7 +253,7 @@ Get your API Key and Client ID at [得到大脑（Get笔记）开放平台](http
 
 - 所有雪花 ID 优先传十进制字符串。为兼容历史调用，工具仍接受 JavaScript 安全整数；超过 `Number.MAX_SAFE_INTEGER` 的数字会被拒绝，避免静默精度损失。
 - `save_note` 支持 `topic_id`、`parent_id`、`client_request_id`。重试同一创建请求时复用同一个 `client_request_id`。
-- `list_topics` 和 `list_subscribe_topics` 默认只返回 `DEFAULT`；需要书籍、客户档案或团队知识库时，显式传 `BOOKSPACE`、`CUSTOMER` 或 `TEAMSPACE`。订阅列表不包含自己创建的知识库。
+- `list_knowledge_bases` 和 `list_subscribed_knowledge_bases` 默认只返回 `DEFAULT`；需要书籍、客户档案或团队知识库时，显式传 `BOOKSPACE`、`CUSTOMER` 或 `TEAMSPACE`。订阅列表不包含自己创建的知识库。
 - 知识库支持文件夹浏览和管理；`batch_add_notes_to_topic` 可传 `directory_id`，把笔记直接加入目标文件夹。
 - 即使 HTTP 为 200，`success:false` 仍按失败处理；错误结果保留 `code/reason/retryable/field/constraint/expected_type/request_id`。
 - 错误保留 `supported_values`、`retry_after_seconds` 和完整 `rate_limit_detail`（包括未来字段），以及 `request_id`。旧服务器仅对已知只读接口的瞬时 QPS 429 最多额外重试 2 次、累计等待不超过 5 秒。v2 只有明确 `dimension=qps`、`request_execution=not_started`、`retry_action=retry_same_operation` 且 `retryable=true` 时，才允许重放已知操作；写入复用原请求体、图片 URL 与 `client_request_id`。配额、服务不可用、已受理或执行状态不确定的请求不自动重试。取消会中止排队、等待与请求，并保留最后 API 建议。
@@ -308,3 +310,34 @@ Get your API Key and Client ID at [得到大脑（Get笔记）开放平台](http
 ## License
 
 MIT
+
+## 渐进阅读与工具名称（1.12.0 候选版，待正式发布）
+
+长会议、录音和长笔记先调用 `get_note_outline`，再用 `read_note_section` 读取所需片段。需要服务端声明 `note.progressive_read.v1`；服务未升级时明确报错，不自动改成全文读取。现有 `get_note`、`get_note_original`、`get_note_transcript` 保持兼容。
+
+例如用户问“准备和领导谈晋升，帮我找之前绩效沟通中的反馈”：先用 `list_notes` 按来源/时间定位，或用 `search_account_content` 找候选，拿到真实字符串 ID 后：
+
+```json
+{"name":"get_note_outline","arguments":{"id":"<返回的笔记ID>"}}
+{"name":"read_note_section","arguments":{"id":"<返回的笔记ID>","keyword":"绩效|晋升|反馈"}}
+{"name":"read_note_section","arguments":{"id":"<返回的笔记ID>","offset":8000,"version":"<上次返回的版本>"}}
+```
+
+最后一条的 offset 仅作格式示例，实际必须使用目录或上一段返回的位置。单位为 UTF-16；版本变化重新取目录，到末尾停止。普通读取默认8000单元，关键词查询不传 limit 搜索到末尾，传 limit 仅搜索该范围。AI 总结不是录音原话，节选不是全文；批量的 `deferred_budget/pending_ids/partial` 仍需按条检查。
+
+工具发现使用更明确的名称，历史调用名仍接受且权限/参数不变：
+
+| 新名称 | 兼容旧名称 |
+| --- | --- |
+| search_account_content | recall |
+| search_knowledge_base | recall_knowledge |
+| batch_get_notes | get_notes |
+| list_knowledge_bases | list_topics |
+| list_knowledge_base_notes | list_topic_notes |
+| list_knowledge_base_directories | list_topic_directories |
+| list_knowledge_base_bloggers | list_topic_bloggers |
+| list_knowledge_base_blogger_contents | list_topic_blogger_contents |
+| list_knowledge_base_lives | list_topic_lives |
+| list_subscribed_knowledge_bases | list_subscribe_topics |
+
+`get_note_original` 支持七类录音来源。`get_note_chapters` 补充 `end_ms`，只从下一章起点推导并标记 `end_source=next_chapter_start`，最后一章未知为 null；保留已有结束时间，不猜测录音时长单位。原始详情结构不裁剪。

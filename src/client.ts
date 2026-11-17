@@ -1,3 +1,4 @@
+import {outlineInput,sectionInput,verifyPage,SectionInput,SectionResponse} from "./progressive";
 import axios, { AxiosInstance, AxiosError } from "axios";
 import { discoveryContract, verifyDiscovery, NoteDiscoveryOptions, LookupOptions, DiscoveryKind } from "./discovery";
 import {BatchDetailOptions,SearchOptions,normalizeBatch,validateSearchOptions,verifyExperience} from "./experience";
@@ -326,6 +327,17 @@ export class GetNoteClient {
   }
 
   // ─── Notes ───────────────────────────────────────────────────────────────
+
+  async getNoteOutline(id:string) {
+    const input=outlineInput.parse({id});
+    const result=await this.request<SectionResponse>('GET','/resource/note/outline',input);
+    verifyPage(result,input);return result;
+  }
+  async readNoteSection(params:SectionInput) {
+    const input=sectionInput.parse(params);
+    const result=await this.request<SectionResponse>('GET','/resource/note/section',input);
+    verifyPage(result,input);return result;
+  }
 
   async listNotes(params: NoteDiscoveryOptions) {
     return this.request<ListNotesResp>("GET", "/resource/note/list", { ...params });
@@ -710,7 +722,7 @@ export interface NoteDetail extends NoteItem {
   quick_note?: string;
   chapter_timeline?: {
     source: string;
-    items: { start_ms: number; title: string }[];
+    items: { start_ms: number; end_ms?: number | null; end_source?: string; title: string }[];
   };
   timeline?: {
     version: number;

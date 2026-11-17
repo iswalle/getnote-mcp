@@ -7,6 +7,8 @@
  *   or pass --api-key and --client-id flags
  */
 
+import {chapterEndTimes} from "./chapters.js";
+import {progressiveTools,canonicalNames,legacyToolName,serverInstructions,outlineInput,sectionInput} from "./progressive.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -151,6 +153,7 @@ const snippetProperties={
 };
 
 const TOOLS: Tool[] = [
+  ...progressiveTools,
   {
     name:"list_reference_resources",
     description:"按课程名/老师定位有个人笔记的得到课程，不需要知识库。query仅课程名exact/prefix，author精确，二者AND且至少一个；用返回course_type+course_id筛选list_notes。核对reference.resources.v1与applied_filters，空页has_more=true仍沿next_cursor继续。保留每页partial/warnings及候选metadata_state；course_directory_no_lessons表示目录缺课节，末页has_more=false仍不能宣称找全老师的全部课程。total未知，不冒充全站课程列表或课程内语义搜索。",
@@ -158,7 +161,7 @@ const TOOLS: Tool[] = [
   },
   {
     name:"get_notes",
-    description:"单次后端批量读取最多20个去重个人笔记ID，保持顺序。默认content/ref_content/reference，original需显式选择；引用原文ref_content，content是评论。默认32000/最多64000Unicode码点及1MiB。逐条保留ok/unavailable/failed/deferred_budget、content_state、pending_ids和partial，成功调用不代表每条读完；整条超预算按需改用旧get_note，不自动并发20次。不批量开放知识库共享权限。需note.batch_detail.v1。",
+    description:"单次后端批量读取最多20个去重个人笔记ID，保持顺序。默认content/ref_content/reference，original需显式选择；引用原文ref_content，content是评论。默认32000/最多64000Unicode码点及1MiB。逐条保留ok/unavailable/failed/deferred_budget、content_state、pending_ids和partial，成功调用不代表每条读完；整条超预算按需改用get_note_outline和read_note_section，不自动并发20次。不批量开放知识库共享权限。需note.batch_detail.v1。",
     inputSchema:{type:"object",properties:{ids:{type:"array",items:{type:"string",description:"正int64十进制字符串，不能传JS Number"},minItems:1,maxItems:200},fields:{type:"array",items:{type:"string",enum:["content","ref_content","reference","original"]}},max_total_chars:{type:"integer",minimum:1,maximum:64000,description:"正文Unicode码点预算，默认32000；不会截断成功项"}},required:["ids"],additionalProperties:false},
   },
   // ── Notes ──
@@ -180,7 +183,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "get_note",
-    description: "获取指定笔记的详细内容，包括正文、标签、附件、音频转录、网页链接等。\n\n**字段语义说明（AI Agent 重要参考）**：\n`content` 通常是 AI 总结，不一定是原文。不同类型笔记的原文字段如下：\n- 引用笔记（ref）：原文 = `note.ref_content`，`note.content` 是个人评论\n- 普通文字笔记（plain_text）：原文 = `note.content`\n- 链接/网页笔记（link）：原文 = `note.web_page.content`，AI 总结 = `note.content`\n- 录音笔记（audio/local_audio）：转写原文 = `note.audio.original`，AI 总结 = `note.content`\n\n用户要求'读原文'时，先看 `note.note_type`，再按上述对应关系取字段。",
+    description: "获取指定笔记的详细内容，包括正文、标签、附件、音频转录、网页链接等。\n\n**字段语义说明（AI Agent 重要参考）**：\n`content` 通常是 AI 总结，不一定是原文。不同类型笔记的原文字段如下：\n- 引用笔记（ref）：原文 = `note.ref_content`，`note.content` 是个人评论\n- 普通文字笔记（plain_text）：原文 = `note.content`\n- 链接/网页笔记（link）：原文 = `note.web_page.content`，AI 总结 = `note.content`\n- 录音笔记（audio/local_audio/meeting/recorder_audio/recorder_flash_audio/class_audio/internal_record）：转写原文 = `note.audio.original`，AI 总结 = `note.content`\n\n用户要求'读原文'时，先看 `note.note_type`，再按上述对应关系取字段。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -219,7 +222,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "get_note_chapters",
-    description: "读取总结中的独立章节时间线 chapter_timeline；start_ms 为毫秒，保留 source。与录音 moments 和标记分别读取，不能相互替代。",
+    description: "读取总结中的独立章节时间线 chapter_timeline；start_ms/end_ms 为毫秒，保留 source。缺少结束时间仅用下一章起点推导 end_source=next_chapter_start；末章未知为 null，不猜录音时长单位。与录音 moments 和标记分别读取，不能相互替代。",
     inputSchema: { type: "object" as const, properties: { id: { type: "string", description: "笔记 ID" } }, required: ["id"] },
   },
   {
@@ -872,6 +875,8 @@ async function handleTool(
       const cursor = (input.cursor as string | undefined);
       return client.listNotes({ ...input, cursor: cursor === "0" ? undefined : cursor });
     }
+    case "get_note_outline": return client.getNoteOutline(outlineInput.parse(input).id);
+    case "read_note_section": return client.readNoteSection(sectionInput.parse(input));
     case "get_note": {
       return client.getNote(snowflakeID(input.id, "id"), input.image_quality as string | undefined);
     }
@@ -885,6 +890,11 @@ async function handleTool(
         case "plain_text": original = note.content; original_source = "content"; break;
         case "link": original = note.web_page?.content; original_source = "web_page.content"; break;
         case "audio":
+        case "meeting":
+        case "recorder_audio":
+        case "recorder_flash_audio":
+        case "class_audio":
+        case "internal_record":
         case "local_audio": original = note.audio?.original; original_source = "audio.original"; break;
         default: throw new Error(`Unsupported note type for original content: ${note.note_type}`);
       }
@@ -914,7 +924,7 @@ async function handleTool(
     case "get_note_chapters": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
       if (!result.note.chapter_timeline) throw new Error("Chapter timeline is not available for this note");
-      return { id: result.note.id, title: result.note.title, chapter_timeline: result.note.chapter_timeline };
+      return { id: result.note.id, title: result.note.title, chapter_timeline: chapterEndTimes(result.note.chapter_timeline) };
     }
     case "get_note_todos": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
@@ -1169,6 +1179,7 @@ async function main() {
       version: SERVER_VERSION,
     },
     {
+      instructions: serverInstructions,
       capabilities: {
         tools: {},
       },
@@ -1177,7 +1188,7 @@ async function main() {
 
   // List tools
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: TOOLS,
+    tools: TOOLS.map(tool => ({...tool,name:canonicalNames[tool.name]??tool.name,description:Object.entries(canonicalNames).reduce((text,[oldName,newName]) => text.replace(new RegExp("\\b"+oldName+"\\b","g"),newName),tool.description??"")})),
   }));
 
   // Call tool
@@ -1186,7 +1197,7 @@ async function main() {
     const input = (args ?? {}) as ToolInput;
 
     try {
-      const result = await handleTool(name, input, client.withSignal(extra.signal));
+      const result = await handleTool(legacyToolName(name), input, client.withSignal(extra.signal));
       const batch = result as { failed_note_ids?: unknown[] } | null;
       const rejected = (name === "batch_add_notes_to_topic" || name === "remove_note_from_topic")
         && Array.isArray(batch?.failed_note_ids) && batch.failed_note_ids.length > 0;

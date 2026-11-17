@@ -24,7 +24,7 @@ test('discovery tools forward selectors and reject false capability success', as
   const {tools}=await client.listTools();
   const schemas=Object.fromEntries(tools.map(t=>[t.name,t.inputSchema.properties]));
   for(const key of ['source','note_type','reference_resource_type','reference_resource_id','reference_article_url','topic_id','created_from','created_to','edited_from','edited_to','record_updated_from','record_updated_to','page_size'])assert.ok(schemas.list_notes[key],`missing list_notes schema: ${key}`);
-  for(const key of ['query','author','book_id','page_size'])assert.ok(schemas.list_topics[key],`missing lookup schema: ${key}`);
+  for(const key of ['query','author','book_id','page_size'])assert.ok(schemas.list_knowledge_bases[key],`missing lookup schema: ${key}`);
   const selectors={source:'dedao',note_type:'ref',reference_resource_type:'course_article',reference_resource_id:'9007199254740993',reference_article_url:'https://example.invalid/a?x=1#p',created_from:'2026-10-09T03:00:00Z',page_size:7};
   for(const [name,args] of [['list_notes',selectors],['list_topic_notes',{...selectors,topic_id:'topic-x',page:2}],['list_topics',{scope:'BOOKSPACE',query:'书名',author:'作者',book_id:'book-x',page_size:7}],['list_subscribe_topics',{scope:'BOOKSPACE',query:'书名',author:'作者',page_size:7}],['get_note',{id:'9007199254740993'}]]) {
    const result=await client.callTool({name,arguments:args});assert.ok(!result.isError,result.content[0].text);

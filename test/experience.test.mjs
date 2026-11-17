@@ -24,9 +24,9 @@ test('course, batch and snippet contracts survive the actual stdio tools', async
  const client=new Client({name:'experience',version:'1'});const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('../dist/index.js',import.meta.url))],env:{...process.env,GETNOTE_API_KEY:'synthetic',GETNOTE_CLIENT_ID:'synthetic',GETNOTE_API_URL:`http://127.0.0.1:${api.address().port}`},stderr:'pipe'});
  try{
   await client.connect(transport);const {tools}=await client.listTools();const schemas=Object.fromEntries(tools.map(t=>[t.name,t.inputSchema]));
-  for(const name of ['list_reference_resources','get_notes'])assert.ok(schemas[name],`missing ${name}`);
+  for(const name of ['list_reference_resources','batch_get_notes'])assert.ok(schemas[name],`missing ${name}`);
   for(const key of ['reference_course_type','reference_course_id'])assert.ok(schemas.list_notes.properties[key]);
-  assert.ok(schemas.recall.properties.response_mode);assert.ok(schemas.recall_knowledge.properties.max_snippet_chars);
+  assert.ok(schemas.search_account_content.properties.response_mode);assert.ok(schemas.search_knowledge_base.properties.max_snippet_chars);
   const cases=[['list_reference_resources',{source:'dedao',resource_type:'course',query:'课程'}],['list_notes',{source:'dedao',reference_course_type:'66',reference_course_id:'9007199254740993'}],['get_notes',{ids:['9007199254740993','0002','2'],fields:['original']}],['recall',{query:'AI',response_mode:'snippet',max_snippet_chars:100}]];
   for(const [name,args]of cases){const result=await client.callTool({name,arguments:args});assert.ok(!result.isError,result.content[0].text);const data=JSON.parse(result.content[0].text);if(name==='list_reference_resources'){assert.equal(data.pagination.has_more,true);assert.equal(data.resources.length,0)}if(name==='get_notes'){assert.deepEqual(requests.at(-1).body.ids,['9007199254740993','2']);assert.deepEqual(data.pending_ids,['2']);assert.equal(data.items[0].note.future_note,true)}if(name==='recall'){assert.equal(data.results[0].future_hit,true);assert.ok(!('content'in data.results[0]))}}
   for(const bad of ['old','ignored']){mode=bad;const r=await client.callTool({name:'list_notes',arguments:cases[1][1]});assert.equal(r.isError,true,`${bad} silently accepted course filter`)}
