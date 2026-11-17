@@ -4,29 +4,60 @@ on:
   push:
     tags:
       - 'v*'
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'package.json'
+      - 'package-lock.json'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  publish:
-    name: Publish to npm
+  test:
+    name: Test on Node ${{ matrix.node }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['20', '24']
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+
+  publish:
+    name: Publish to npm with trusted publishing
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Use npm with trusted publishing support
+        run: npm install --global npm@11.12.1
 
-      - name: Test before publishing
-        run: npm test
+      - name: Verify release version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          CURRENT=$(node -p "require('./package.json').version")
+          test "$VERSION" = "$CURRENT"
+
+      - name: Install dependencies and build
+        run: npm ci
 
       - name: Publish
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM }}

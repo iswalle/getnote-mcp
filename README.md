@@ -311,7 +311,7 @@ Get your API Key and Client ID at [得到大脑（Get笔记）开放平台](http
 
 MIT
 
-## 渐进阅读与工具名称（1.12.1）
+## 渐进阅读与工具名称（1.12.2）
 
 长会议、录音和长笔记先调用 `get_note_outline`，再用 `read_note_section` 读取所需片段。需要服务端声明 `note.progressive_read.v1`；服务未升级时明确报错，不自动改成全文读取。现有 `get_note`、`get_note_original`、`get_note_transcript` 保持兼容。
 
