@@ -43,8 +43,12 @@ test('safe retry snapshots the original body before caller data can mutate',asyn
  await new GetNoteClient('key','client',base).saveNote(body);assert.deepEqual(bodies.map(JSON.parse),[{content:'original',image_urls:['https://oss.test/original'],client_request_id:'same-key'},{content:'original',image_urls:['https://oss.test/original'],client_request_id:'same-key'}]);
 });
 test('QPS error advice paces the next queued request even if the refused operation cannot retry',async t=>{
- const times=[];const base=await fixture(t,(req,res)=>{times.push(Date.now());if(times.length===1)fail(res,{...refusal,request_execution:'admitted',sustained_rate_per_second:20});else ok(res)});
- const c=new GetNoteClient('key','client',base);await assert.rejects(()=>c.saveNote({content:'refused'}));await c.getNote('1');assert.ok(times[1]-times[0]>=40);
+ let calls=0;const base=await fixture(t,(req,res)=>{calls++;if(calls===1)fail(res,{...refusal,request_execution:'admitted',sustained_rate_per_second:20});else ok(res)});
+ const c=new GetNoteClient('key','client',base);const dispatchTimes=[];
+ // Pacing controls client dispatch, not server arrival after connection setup.
+ // Delay the first transport to cover the skew seen on busy CI runners.
+ c.http.interceptors.request.use(async config=>{dispatchTimes.push(performance.now());if(dispatchTimes.length===1)await new Promise(r=>setTimeout(r,20));return config});
+ await assert.rejects(()=>c.saveNote({content:'refused'}));await c.getNote('1');assert.equal(calls,2);assert.ok(dispatchTimes[1]-dispatchTimes[0]>=40,`${dispatchTimes}`);
 });
 
 test('idle identity entries expire with advisory pacing instead of retaining authorization state forever',async t=>{

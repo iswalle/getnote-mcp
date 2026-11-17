@@ -311,7 +311,7 @@ Get your API Key and Client ID at [得到大脑（Get笔记）开放平台](http
 
 MIT
 
-## 渐进阅读与工具名称（1.12.0 候选版，待正式发布）
+## 渐进阅读与工具名称（1.12.1）
 
 长会议、录音和长笔记先调用 `get_note_outline`，再用 `read_note_section` 读取所需片段。需要服务端声明 `note.progressive_read.v1`；服务未升级时明确报错，不自动改成全文读取。现有 `get_note`、`get_note_original`、`get_note_transcript` 保持兼容。
 
@@ -342,4 +342,4 @@ MIT
 
 `get_note_original` 支持七类录音来源。`get_note_chapters` 补充 `end_ms`，只从下一章起点推导并标记 `end_source=next_chapter_start`，最后一章未知为 null；保留已有结束时间，不猜测录音时长单位。原始详情结构不裁剪。
 
-本候选版同时更新 SDK、HTTP 与参数校验依赖到已修复版本；Zod 4 的 record 校验使用显式字符串键，原接口的字段、错误原因和参数语义保持。2026-11-17 本地生产依赖审计为 0 项已知漏洞，另覆盖旧 MCP 协议握手和历史工具名调用。
+本版同时更新 SDK、HTTP 与参数校验依赖到已修复版本；Zod 4 的 record 校验使用显式字符串键，原接口的字段、错误原因和参数语义保持。2026-11-17 本地生产依赖审计为 0 项已知漏洞，另覆盖旧 MCP 协议握手和历史工具名调用。
