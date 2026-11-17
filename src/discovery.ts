@@ -85,14 +85,14 @@ export function discoveryContract(kind: DiscoveryKind, input: Record<string, unk
 }
 
 export function verifyDiscovery(body: unknown, contract: DiscoveryContract): void {
-  const envelope = z.object({ meta: z.object({ capabilities: z.array(z.string()) }), data: z.record(z.unknown()) }).safeParse(body);
+  const envelope = z.object({ meta: z.object({ capabilities: z.array(z.string()) }), data: z.record(z.string(),z.unknown()) }).safeParse(body);
   if (!envelope.success) throw new Error("server does not declare discovery capabilities; upgrade the server (unfiltered results not accepted)");
   for (const cap of contract.capabilities) if (!envelope.data.meta.capabilities.includes(cap)) throw new Error(`server does not support ${cap}; unfiltered results not accepted`);
   if (contract.kind === "detail") return;
   const data = envelope.data.data;
   // Responses also contain typed flags such as exclude_mine; only requested
   // string selectors must match the contract, without coercion.
-  const applied = z.record(z.unknown()).safeParse(data.applied_filters);
+  const applied = z.record(z.string(),z.unknown()).safeParse(data.applied_filters);
   if (!applied.success) throw new Error("server did not return applied_filters");
   for (const [key, value] of Object.entries(contract.filters)) if (applied.data[key] !== value) throw new Error(`server did not apply ${key}`);
   const p = z.object({ mode: z.enum(["page", "cursor"]), page: integer.nullable(), page_size: integer.max(100), returned_count: z.number().int().nonnegative(), total_count: z.number().int().nonnegative().nullable(), has_more: z.boolean(), next_page: integer.nullable(), next_cursor: z.string().min(1).nullable() }).parse(data.pagination);

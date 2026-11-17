@@ -1,6 +1,6 @@
 export interface ReadFailure {httpStatus?:number;code:number;reason:string;retryable:boolean;retryAfterSeconds?:number;waitProvided?:boolean;rateLimitDetail?:unknown}
 const getPaths=new Set([
-  "/resource/note/list","/resource/note/detail","/resource/note/marks","/resource/note/sprouts","/resource/note/sprout",
+  "/resource/note/outline","/resource/note/section","/resource/note/list","/resource/note/detail","/resource/note/marks","/resource/note/sprouts","/resource/note/sprout",
   "/resource/reference/list","/resource/knowledge/list","/resource/knowledge/subscribe/list","/resource/knowledge/notes","/resource/knowledge/directories",
   "/resource/image/config","/resource/image/upload_operation","/resource/knowledge/file/upload_operation","/resource/knowledge/file/capabilities","/resource/knowledge/bloggers","/resource/knowledge/blogger/contents","/resource/knowledge/blogger/content/detail",
   "/resource/knowledge/lives","/resource/knowledge/live/detail","/resource/rate-limit/quota"

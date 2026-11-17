@@ -58,7 +58,7 @@ test('stdio tools enforce metadata-only uploads and preserve business errors', a
     const chapters = await client.callTool({name:'get_note_chapters',arguments:{id:'123'}});
     assert.ok(!chapters.isError);
     const chapterData = JSON.parse(chapters.content[0].text);
-    assert.deepEqual(chapterData.chapter_timeline, {source:'summary_markdown_rules',items:[{start_ms:1000,title:'Opening'}]});
+    assert.deepEqual(chapterData.chapter_timeline, {source:'summary_markdown_rules',items:[{start_ms:1000,end_ms:null,title:'Opening'}]});
     assert.equal(chapterData.timeline, undefined);
   } finally {
     await client.close();
