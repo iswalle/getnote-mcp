@@ -21,7 +21,7 @@ export function verifyExperience(body:unknown,path:string,request:unknown):void 
   const input=request as (SearchOptions&{ids?:string[]})|undefined;
   const cap=path==="/resource/note/batch-detail"?"note.batch_detail.v1":input?.response_mode==="snippet"?"search.snippet.v1":undefined;
   if(!cap)return;
-  const parsed=z.object({meta:z.object({capabilities:z.array(z.string())}),data:z.record(z.unknown())}).safeParse(body);
+  const parsed=z.object({meta:z.object({capabilities:z.array(z.string())}),data:z.record(z.string(),z.unknown())}).safeParse(body);
   if(!parsed.success||!parsed.data.meta.capabilities.includes(cap))throw new Error(`server does not support ${cap}; new mode was not accepted`);
   const data=parsed.data.data;
   if(cap==="note.batch_detail.v1"){

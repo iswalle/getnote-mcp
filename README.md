@@ -341,3 +341,5 @@ MIT
 | list_subscribed_knowledge_bases | list_subscribe_topics |
 
 `get_note_original` 支持七类录音来源。`get_note_chapters` 补充 `end_ms`，只从下一章起点推导并标记 `end_source=next_chapter_start`，最后一章未知为 null；保留已有结束时间，不猜测录音时长单位。原始详情结构不裁剪。
+
+本候选版同时更新 SDK、HTTP 与参数校验依赖到已修复版本；Zod 4 的 record 校验使用显式字符串键，原接口的字段、错误原因和参数语义保持。2026-11-17 本地生产依赖审计为 0 项已知漏洞，另覆盖旧 MCP 协议握手和历史工具名调用。
