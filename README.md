@@ -7,7 +7,7 @@
 ## 准备
 
 1. 在 [得到大脑开放平台](https://www.biji.com/openapi) 创建应用，生成 **API Key** 和 **Client ID**
-2. 本机装好 Node.js 20 以上
+2. 本机装好 Node.js 20 以上；国内网络下载慢可以先执行 `npm config set registry https://registry.npmmirror.com`
 
 所有得到大脑用户授权后都可以调用，会员享有更高额度（[了解会员](https://www.biji.com/checkout?product_alias=9Ab36BB3ZD&spm=openapi_mcp)）。让 AI 调用 `get_quota` 可以看当前额度。
 
