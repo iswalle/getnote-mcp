@@ -8,9 +8,7 @@ MCP (Model Context Protocol) server for [得到大脑（Get笔记）](https://bi
 
 > 🔑 **获取 API Key**：https://www.biji.com/openapi
 >
-> **免费账号也可以使用**：完成授权即可调用，会员享有更高默认额度。用 `get_quota` 查看当前实际额度，专项配额和企业代授权以服务端为准。额度用尽按返回的重置时间等待。
->
-> **按需升级会员**：[前往得到大脑会员购买页](https://www.biji.com/checkout?product_alias=9Ab36BB3ZD&spm=openapi_mcp)
+> **调用额度**：所有得到大脑用户授权后都可以调用，会员享有更高额度（[了解会员](https://www.biji.com/checkout?product_alias=9Ab36BB3ZD&spm=openapi_mcp)）。用 `get_quota` 查看当前额度，额度用完后按返回的重置时间等待。
 
 ## Installation
 
