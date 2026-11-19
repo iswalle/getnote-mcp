@@ -1,345 +1,90 @@
 [![MseeP.ai Security Assessment Badge](https://mseep.net/pr/iswalle-getnote-mcp-badge.png)](https://mseep.ai/app/iswalle-getnote-mcp)
 
-# getnote-mcp
+# 得到大脑（Get笔记）MCP Server
 
-MCP (Model Context Protocol) server for [得到大脑（Get笔记）](https://biji.com) Open API.
+让支持 MCP 的 AI 工具（Claude Desktop、Cursor 等）直接读写你的得到大脑笔记：搜索、保存、阅读、整理知识库。
 
-得到大脑（Get笔记）是一款个人笔记管理工具。通过此 MCP Server，AI 模型可以帮助用户管理笔记。
+## 准备
 
-> 🔑 **获取 API Key**：https://www.biji.com/openapi
->
-> **调用额度**：所有得到大脑用户授权后都可以调用，会员享有更高额度（[了解会员](https://www.biji.com/checkout?product_alias=9Ab36BB3ZD&spm=openapi_mcp)）。用 `get_quota` 查看当前额度，额度用完后按返回的重置时间等待。
+1. 在 [得到大脑开放平台](https://www.biji.com/openapi) 创建应用，生成 **API Key** 和 **Client ID**
+2. 本机装好 Node.js 20 以上
 
-## Installation
+所有得到大脑用户授权后都可以调用，会员享有更高额度（[了解会员](https://www.biji.com/checkout?product_alias=9Ab36BB3ZD&spm=openapi_mcp)）。让 AI 调用 `get_quota` 可以看当前额度。
 
-需要 Node.js 20 或更高版本。
+## 接入 AI 工具
 
-```bash
-# 直接运行（推荐，无需克隆）
-npx @getnote/mcp
-
-# 或全局安装
-npm install -g @getnote/mcp
-```
-
-## 使用场景
-
-- 用户说「帮我记一下」「保存到笔记」「记录下来」→ `save_note`
-- 用户说「改一下这个笔记」「更新笔记内容」→ `update_note`
-- 用户说「查一下我的笔记」「找找之前的笔记」→ `list_notes`
-- 用户说「搜一下」「找找我哪些笔记提到了 XX」→ `search_account_content`
-- 用户说「在 XX 知识库搜一下」→ `search_knowledge_base`
-- 用户分享了一个链接，说「保存这个」→ `save_note`（链接笔记）
-- 用户说「给这个笔记加个标签」→ `add_note_tags`
-- 用户说「读这条链接笔记原文 / 读取会议转写」→ `get_note_original` / `get_note_transcript`
-- 用户说「把笔记放进知识库的某个文件夹」→ `list_knowledge_base_directories` + `batch_add_notes_to_topic`
-- 用户说「订阅这个抖音博主」→ `follow_topic_blogger`
-
-## Features
-
-Exposes the following tools to AI models:
-
-| Tool | Description |
-|------|-------------|
-| `list_notes` | 获取笔记列表（游标分页） |
-| `list_reference_resources` | 按课程名/老师定位有个人笔记的课程容器 |
-| `batch_get_notes` | 单次后端批量读取最多20条个人笔记正文，保留预算与逐条状态 |
-| `get_note_outline` | 获取长笔记目录、UTF-16 偏移和版本 |
-| `read_note_section` | 按目录位置或字面关键词读取有界节选 |
-| `get_note` | 获取笔记详情（支持 `image_quality=original` 获取原图） |
-| `get_note_original` | 按笔记类型直接读取原文 |
-| `get_note_transcript` | 直接读取录音、会议或课堂转写 |
-| `get_note_attachments` | 直接列出图片、音频和文件附件 |
-| `get_note_marks` | 读取笔记标记 |
-| `get_note_chapters` | 读取独立章节时间线 |
-| `list_sprouts` / `get_sprout` | 列出发芽报告 / 读取报告详情 |
-| `get_knowledge_file_capabilities` | 查询知识库文件限制 |
-| `get_knowledge_file_upload_token` | 获取临时 OSS 上传凭据；可传原 `operation_id` |
-| `get_knowledge_file_upload_operation` | 查询原文件上传凭据操作，避免重复申请 |
-| `upload_knowledge_file` | 提交已上传文件的入库元数据 |
-| `get_note_timeline` | 直接读取录音或会议时间线及原文资源 |
-| `get_note_quick_note` | 直接读取录音快捷笔记 |
-| `get_note_todos` | 读取会议总结中明确待办章节规则解析出的待办；不让模型自由猜测 |
-| `save_note` | 新建笔记（纯文本/链接/图片，见下方类型说明） |
-| `update_note` | 更新笔记（标题/内容/标签，仅支持 plain_text 类型） |
-| `get_note_task_progress` | 查询创建笔记任务进度（链接/图片笔记） |
-| `delete_note` | 删除笔记（移入回收站） |
-| `add_note_tags` | 添加笔记标签 |
-| `delete_note_tag` | 删除笔记标签 |
-| `search_account_content` | 全局语义搜索（在所有笔记中搜索） |
-| `search_knowledge_base` | 知识库语义搜索（在指定知识库中搜索） |
-| `list_knowledge_bases` | 获取知识库列表，默认 DEFAULT，可指定 scope |
-| `create_topic` | 创建知识库 |
-| `list_knowledge_base_notes` | 获取知识库笔记列表 |
-| `batch_add_notes_to_topic` | 批量添加笔记到知识库 |
-| `remove_note_from_topic` | 从知识库移除笔记 |
-| `list_knowledge_base_directories` | 浏览知识库文件夹及资源 |
-| `create_topic_directory` | 创建知识库文件夹 |
-| `update_topic_directory` | 重命名或移动知识库文件夹 |
-| `delete_topic_directory` | 删除空知识库文件夹 |
-| `get_upload_config` | 获取图片上传配置 |
-| `get_upload_token` | 获取图片上传凭证；可传原 `operation_id` |
-| `get_upload_operation` | 查询原图片上传凭据操作，避免重复申请 |
-| `upload_image` | 完整图片上传（自动获取凭证 + 上传到 OSS）|
-| `list_knowledge_base_bloggers` | 获取知识库订阅的博主列表 |
-| `follow_topic_blogger` | 订阅抖音博主到知识库 |
-| `list_knowledge_base_blogger_contents` | 获取博主内容列表（摘要） |
-| `get_blogger_content_detail` | 获取博主内容详情（含原文） |
-| `list_knowledge_base_lives` | 获取知识库已完成直播列表 |
-| `get_live_detail` | 获取直播详情（含 AI 摘要和原文转写） |
-| `get_quota` | 查询 API 调用配额 |
-| `share_note` | 生成笔记分享链接 |
-| `follow_topic_live` | 在知识库里订阅得到直播 |
-| `list_subscribed_knowledge_bases` | 获取真实订阅的他人知识库，默认 DEFAULT，可指定 scope |
-
-## Usage
-
-### 配置授权
-
-当前本地 MCP 通过 OpenAPI API Key 和 Client ID 鉴权。先在 **https://www.biji.com/openapi** 创建或选择应用，完成账号授权并生成 API Key，再把两项凭证配置给 MCP 客户端。不要把凭证写进会提交到仓库的配置文件。
-
-### Environment variable
-
-```bash
-# 临时使用
-GETNOTE_API_KEY=your_api_key GETNOTE_CLIENT_ID=your_client_id node dist/index.js
-
-# 持久化（添加到 ~/.zshrc 或 ~/.bashrc）
-export GETNOTE_API_KEY=gk_live_xxx
-export GETNOTE_CLIENT_ID=cli_xxx
-# 可选：仅在明确联调测试环境时覆盖
-export GETNOTE_API_URL=http://entree.dev.didatrip.com
-```
-
-### CLI flag
-
-```bash
-node dist/index.js --api-key your_api_key --client-id your_client_id
-```
-
-## Claude Desktop Configuration
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+以 Claude Desktop 为例，在 `~/Library/Application Support/Claude/claude_desktop_config.json` 里加上：
 
 ```json
 {
   "mcpServers": {
     "getnote": {
-      "command": "node",
-      "args": ["/path/to/getnote-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@getnote/mcp"],
       "env": {
-        "GETNOTE_API_KEY": "your_api_key_here",
-        "GETNOTE_CLIENT_ID": "your_client_id_here"
+        "GETNOTE_API_KEY": "你的 API Key",
+        "GETNOTE_CLIENT_ID": "你的 Client ID"
       }
     }
   }
 }
 ```
 
-## Limits
+其他工具按各自的 MCP 配置方式填同样的命令和环境变量。也可以用参数传入：`npx @getnote/mcp --api-key <key> --client-id <id>`。
 
-| Item | Limit |
-|------|-------|
-| 每日知识库创建上限 | 每个账号每天最多创建 **50 个知识库** |
-| 重置时间 | 按 **北京时间**自然日 00:00 重置 |
+不要把 API Key 写进会提交到代码仓库的文件。
 
-> ⚠️ 超出限制时，`create_topic` 接口将返回 429 错误（`reason: quota_daily_exceeded`）。
+## 能做什么
 
-## Notes on Note Types
+接好后直接对 AI 说，例如：
 
-`save_note` supports **three note types**:
+- 「帮我记一下：周五前回复王总」
+- 「把这个链接存到得到大脑」
+- 「搜一下我哪些笔记提到了 RAG」
+- 「找出上周录音台的会议笔记，读一下讲到定价的部分」
+- 「把这 3 条笔记放进『产品调研』知识库」
 
-| Type | Description |
-|------|-------------|
-| `plain_text` | 纯文本笔记（默认） |
-| `link` | 链接笔记（需传 `link_url`） |
-| `img_text` | 图片笔记（需传 `image_urls`，通过上传图片到 OSS 获取） |
+| 分类 | 工具 |
+| --- | --- |
+| 找笔记 | `list_notes`（可按来源、类型、时间筛选）、`search_account_content`、`search_knowledge_base`、`list_reference_resources` |
+| 读笔记 | `get_note`、`batch_get_notes`、`get_note_outline`、`read_note_section`、`get_note_original`、`get_note_transcript`、`get_note_attachments`、`get_note_timeline`、`get_note_chapters`、`get_note_marks`、`get_note_quick_note`、`get_note_todos`、`list_sprouts`、`get_sprout` |
+| 写笔记 | `save_note`（文字、链接、图片）、`get_note_task_progress`、`update_note`、`delete_note`、`share_note`、`add_note_tags`、`delete_note_tag` |
+| 知识库 | `list_knowledge_bases`、`list_subscribed_knowledge_bases`、`list_knowledge_base_notes`、`create_topic`、`batch_add_notes_to_topic`、`remove_note_from_topic`、文件夹的浏览与增删改 |
+| 订阅内容 | 抖音博主、得到直播的订阅和内容读取 |
+| 上传 | `upload_image`（图片一步上传）、知识库文件上传相关工具 |
+| 账号 | `get_quota` |
 
-> **语音笔记等其他类型**只能在 得到大脑（Get笔记） App 或 Web 端创建，MCP 可以读取但无法创建。
+几点说明：
 
-## 录音台与录音卡笔记
+- 录音台的笔记用 `list_notes` 的 `source=vendor_moan` 查，录音卡用 `getseed`
+- 长笔记先用 `get_note_outline` 看目录，再用 `read_note_section` 按段读，不用整篇拉取
+- 只能新建文字、链接、图片笔记；录音等类型只能在 App 或网页端创建，这里只能读
+- 删除是移入回收站，可以在 App 里恢复
+- 笔记 ID 一律按字符串传，避免长数字丢精度
+- 每个账号每天最多新建 50 个知识库，北京时间 0 点重置
+- 旧工具名（如 `recall`、`list_topics`）仍然可用
 
-使用 `list_notes` 的 `source` 定向筛选：AI录音台/墨案MOAN录音台为 `vendor_moan`，GetSeed录音卡为 `getseed`。设备全部笔记只限定来源，不额外加 `note_type=audio/meeting`；录音卡长录音和闪念均包含。明确只要其中一种录音卡模式时，才叠加 `recorder_audio` 或 `recorder_flash_audio`。
+## 环境变量
 
-```json
-{"name":"list_notes","arguments":{"source":"vendor_moan","page_size":20}}
-```
+| 变量 | 说明 |
+| --- | --- |
+| `GETNOTE_API_KEY` | API Key（必填） |
+| `GETNOTE_CLIENT_ID` | Client ID（必填） |
+| `GETNOTE_API_URL` | 换成别的 API 地址，一般不用设 |
 
-昨天/上周的笔记叠加 created_from/created_to（用户时区的RFC3339边界，from包含、to不包含）。翻页保留全部原条件，核对 applied_filters.source 与 notes[].source，按 pagination.next_cursor 继续并去重。has_more=false且无未解决的partial/warnings才表示当前授权范围已遍历；旧total不是设备范围总数。空结果不换来源补数，不能用标签或标题猜设备来源；没有设备约束的普通录音查询不加设备source。
+## 更新日志
 
-只覆盖已经同步成笔记且有权读取的主笔记，不包括设备未同步或尚未形成笔记的会议记录。设备范围内的正文主题先按来源列候选、按需读正文，不把全局recall的Top-K后过滤称为完整设备搜索。转写用 `get_note_transcript`，不把AI总结/preview当作转写，也不把转写缺失当作笔记不存在。
+| 版本 | 日期 | 主要变化 |
+| --- | --- | --- |
+| v1.12.3 | 2026-11-18 | 文档：说明所有用户都能调用，会员额度更高 |
+| v1.12.x | 2026-11-17 | 长笔记按目录分段读；工具改用更好懂的名字，旧名字仍可用；依赖升级到已修复版本 |
+| v1.11.0 | 2026-11-04 | 遇到限流自动排队、有限重试；上传中断后能接着传，不重复上传 |
+| v1.9.0 | 2026-10-13 | 按书名、作者找书；按引用来源和时间筛选笔记 |
+| v1.8.0 | 2026-09-24 | 读取标记、发芽报告和章节时间线；上传文件到知识库 |
+| v1.7.0 | 2026-08-13 | 知识库文件夹管理；订阅抖音博主；读取录音原文、附件、时间线和会议待办 |
 
-## 查找笔记与书库
-
-- 书名用 `list_knowledge_bases` 的 `query`，作者用 `author`，并指定 `scope: "BOOKSPACE"`。两者同时传入时须同时匹配；订阅书库使用 `list_subscribed_knowledge_bases`。
-- 书库定位后用 `list_knowledge_base_notes` 读取笔记。用户要全部笔记时不默认加 `note_type: "ref"`；仅要划线或摘录时再加。
-- 本分支增加 `list_reference_resources`：source=dedao、resource_type=course，query仅匹配课程名exact/prefix，author精确匹配老师，两者AND且至少一个。由返回course_type+course_id调用 `list_notes` 的 reference_course_type/reference_course_id；当前66，包含课程直接引用及所属课节。旧reference_resource_id仍是原课节ID，组合按交集；course+topic_id与课程内语义搜索尚未开放。
-- 新请求核对当前接口 capabilities/applied_filters，不把本地安装当作服务已发布，不接受旧服务忽略课程条件的成功结果。课程目录允许空结果页has_more=true，继续真实next_cursor；只有完成当前授权范围的遍历才能说已查全。
-- 列表用于定位；完整内容调用 `get_note`，引用原文调用 `get_note_original`。引用笔记的 `ref_content` 是原文，`content` 是个人评论。
-- 少量个人笔记可用 `batch_get_notes` 的ids字符串数组，最多20个去重ID，默认content/ref_content/reference；original显式请求。默认32000/上限64000个Unicode码点及1MiB，成功项完整，deferred_budget整条待读，保留pending_ids/partial，不自动并发20次详情，不开放知识库共享权限。未知未来字段与状态原样保留。
-- `search_account_content` / `search_knowledge_base` 显式传response_mode=snippet，可选max_snippet_chars=100..1000（默认400），核对search.snippet.v1，保留snippet_source/truncated/content_state；full指完整命中片段，不是全文。旧调用不传新参数保持原正文和top_k语义。
-- 按响应的 `pagination.next_page` / `next_cursor` 继续，保持筛选条件；只有遍历完成才能说全部找到。语义搜索 Top-K 不代表全量，搜索为空也不能证明没有相关笔记。
-
-## 独立报告与知识库文件
-
-- 标记 `get_note_marks`、发芽 `list_sprouts` / `get_sprout`、章节 `get_note_chapters` 与录音 `get_note_timeline` 独立读取。
-- 文件上传前调用 `get_knowledge_file_capabilities` 获取格式、大小、页数与额度限制。
-- `get_knowledge_file_upload_token` 获取临时凭据，本机用 CLI 1.6.0+ 的 `getnote upload <文件> --token-file <受控文件> --max-size-bytes <能力上限>` 直传 OSS，无需 CLI 再登录。
-- `upload_knowledge_file` 提交文件元数据；用 `list_knowledge_base_directories` 确认同一资源达到 `SUCCESS`。OSS 上传完成不等于解析完成。凭据不出现在聊天或命令参数中。
-
-## 图片上传流程
-
-通过 MCP 上传图片创建笔记需要三步：
-
-### 1. 获取上传凭证
-
-```
-Tool: get_upload_token
-Input: { "mime_type": "png" }
-```
-
-返回 OSS 上传凭证：
-```json
-{
-  "accessid": "LTAI5t...",
-  "host": "https://ali-bj2-oss-get-notes-prod.oss-accelerate.aliyuncs.com",
-  "policy": "eyJleHBpcmF...",
-  "signature": "nhyBord...",
-  "callback": "eyJjYWxs...",
-  "object_key": "get_notes_prod/...",
-  "access_url": "https://ali-bj2-oss-get-notes-prod.oss-accelerate.aliyuncs.com/...",
-  "oss_content_type": "image/png"
-}
-```
-
-### 2. 上传到 OSS
-
-使用凭证通过 multipart/form-data POST 上传：
-
-```bash
-curl -X POST "${host}" \
-  -F "key=${object_key}" \
-  -F "OSSAccessKeyId=${accessid}" \
-  -F "policy=${policy}" \
-  -F "signature=${signature}" \
-  -F "callback=${callback}" \
-  -F "Content-Type=${oss_content_type}" \
-  -F "file=@/path/to/image.png;type=${oss_content_type}"
-```
-
-### 3. 创建图片笔记
-
-使用凭证中的 `access_url` 创建笔记：
-
-```
-Tool: save_note
-Input: {
-  "title": "图片笔记",
-  "note_type": "img_text",
-  "image_urls": ["${access_url}"]
-}
-```
-
-> **推荐流程**：直接使用 `upload_image` 工具，它会自动完成步骤 1 和 2 并返回 `image_url`。`image_path` 仅接受相对路径；也可以传 `image_base64`，避免 MCP 读取超出工作目录的本地文件。
-
-## API
-
-- **Base URL**: `https://openapi.biji.com/open/api/v1`
-- **Auth**: Bearer Token (API Key)
-
-Get your API Key and Client ID at [得到大脑（Get笔记）开放平台](https://www.biji.com/openapi).
-
-### 新版契约兼容
-
-- 所有雪花 ID 优先传十进制字符串。为兼容历史调用，工具仍接受 JavaScript 安全整数；超过 `Number.MAX_SAFE_INTEGER` 的数字会被拒绝，避免静默精度损失。
-- `save_note` 支持 `topic_id`、`parent_id`、`client_request_id`。重试同一创建请求时复用同一个 `client_request_id`。
-- `list_knowledge_bases` 和 `list_subscribed_knowledge_bases` 默认只返回 `DEFAULT`；需要书籍、客户档案或团队知识库时，显式传 `BOOKSPACE`、`CUSTOMER` 或 `TEAMSPACE`。订阅列表不包含自己创建的知识库。
-- 知识库支持文件夹浏览和管理；`batch_add_notes_to_topic` 可传 `directory_id`，把笔记直接加入目标文件夹。
-- 即使 HTTP 为 200，`success:false` 仍按失败处理；错误结果保留 `code/reason/retryable/field/constraint/expected_type/request_id`。
-- 错误保留 `supported_values`、`retry_after_seconds` 和完整 `rate_limit_detail`（包括未来字段），以及 `request_id`。旧服务器仅对已知只读接口的瞬时 QPS 429 最多额外重试 2 次、累计等待不超过 5 秒。v2 只有明确 `dimension=qps`、`request_execution=not_started`、`retry_action=retry_same_operation` 且 `retryable=true` 时，才允许重放已知操作；写入复用原请求体、图片 URL 与 `client_request_id`。配额、服务不可用、已受理或执行状态不确定的请求不自动重试。取消会中止排队、等待与请求，并保留最后 API 建议。
-- 同一 Node 进程内，按规范化 API 地址、授权 Key 和 Client ID 的 SHA256 隔离排队；同一授权身份的调用及其重试串行，其他身份独立。仅从服务器 quota/config/capabilities 策略或 QPS 错误学习节奏，缓存仅作建议，闲置身份 5 分钟后释放；多个进程之间不协调。
-- 图片和文件凭据先协商 `runtime`。只有服务器同时启用治理、操作恢复并声明 `Idempotency-Key` 与对应状态接口时，才使用稳定的 `operation_id`；默认生成一次，也可显式传入 `^[A-Za-z0-9._:-]{1,128}$`。旧服务器或关闭能力时保留原流程，不发送幂等头；显式要求恢复会在签发前明确失败。
-- 凭据响应丢失或操作未确认时，只查询原操作，不生成新 Key。可用 `get_upload_operation` / `get_knowledge_file_upload_operation` 继续查询；只有原期限内的 `issued` 状态返回原凭据，过期、未知或未确认会返回原标识、类型、查询建议和 `retryable=false`。冲突保持冲突，不将不同参数恢复成另一项请求。凭据敏感，不放入聊天或日志。
-- 保存遭遇限流时保留已上传对象和同一笔记 `client_request_id`，不要重新上传；`pending` / `processing` 不等于完成。
-- `GETNOTE_API_URL` 可传站点根地址、`/open` 或完整 `/open/api/v1`；未设置时仍使用生产地址。
-
-## 🚀 进阶用法：用笔记内链实践柳比歇夫时间日志法
-
-柳比歇夫时间日志法的核心是**每天记录自己把时间花在了哪里**，事后统计、复盘、改进。
-
-结合 得到大脑（Get笔记）内链，AI 可以帮你自动串联：
-
-**每天早上**
-
-> 👤 帮我记一条今日工作日志，内链到「产品设计方案」和「客户反馈」这两条笔记
->
-> 🤖 已记录「2026-04-24 工作日志」，正文已插入两条内链。
-
-**每周复盘**
-
-> 👤 找找我这周的工作日志，整理一下时间分配
->
-> 🤖 找到 5 条日志，你这周：产品设计 12h、客户沟通 6h、开会 4h……
-
-**内链格式**：在笔记正文里用 `https://biji.com/note/{note_id}` 引用其他笔记。示例：
-
-```
-参考上次的讨论：https://biji.com/note/1234567890000000001
-```
-
-告诉 AI 要内链到哪条笔记，AI 会自动获取对应 note_id 插入。
-
----
-
-## 🆕 更新日志
-
-| 日期 | 版本 | 新能力 | 适合怎么用 |
-|------|------|--------|------------|
-| 2026-11-04 | **v1.11.0** | 限流排队与安全原请求重试；原上传操作恢复；兼容旧服务能力接口；图片传输支持取消、超时并禁止重定向重传 | 并发任务遵守实际账号预算，响应不确定时核对原凭证和对象，不重复签发 |
-| 2026-10-13 | **v1.9.1** | 修复订阅查询中布尔筛选字段被误判为非法响应的问题；明确书名与作者参数 | 正常查询订阅书库，保留作者等筛选条件的严格校验 |
-| 2026-10-13 | **v1.9.0** | 支持书库身份、引用来源和时间筛选，保留分页及元数据 | 按来源找到笔记，通过详情读取全文，区分划线原文与评论 |
-| 2026-09-24 | **v1.8.0** | 独立读取标记、发芽、章节时间线；支持知识库文件能力、临时上传凭据与入库 | 云 MCP 配合本地 CLI 上传文件，无需重复授权 |
-| 2026-08-13 | **v1.7.0** | 1. 支持知识库目录浏览、创建、重命名、移动和删除<br>2. 支持将笔记加入指定目录，以及读取和维护已有团队知识库 `TEAMSPACE`<br>3. 支持订阅抖音博主、读取博主内容<br>4. 增加录音原文、链接原文、附件、时间线、快捷笔记和会议待办工具<br>5. 统一雪花 ID、结构化错误和异步任务结果 | 让支持 MCP 的 AI 工具直接整理知识库、归档笔记并读取深层内容；调用失败时保留明确原因和 `request_id`，便于恢复与排查 |
-| 2026-04-23 | **v1.3.1** | 1. 笔记内链<br>2. 保存分享链接自动变笔记 | 1. 用内链串联每天的工作日志和项目笔记，实践时间日志法<br>2. 收到别人发来的分享链接直接存入笔记 |
-| 2026-04-16 | **v1.3.0** | 1. 生成笔记分享链接<br>2. 知识库订阅得到直播 | 1. 把笔记一键分享给朋友<br>2. 在知识库里订阅得到直播课，直播结束后 AI 摘要自动入库 |
-| 2026-03-23 | **v1.2.x** | 获取我订阅的知识库，支持语义搜索 | 开通了某个知识库，可以直接问 AI：「在我订阅的 XXX 知识库里搜一下时间管理」 |
-| 2026-03-12 | **v1.2.0** | 查看订阅博主内容、直播摘要和转写原文 | 把别人的知识变成自己可检索的笔记库 |
-
----
+更早的版本见 [Releases](https://github.com/iswalle/getnote-mcp/releases)。
 
 ## License
 
 MIT
-
-## 渐进阅读与工具名称（1.12.2）
-
-长会议、录音和长笔记先调用 `get_note_outline`，再用 `read_note_section` 读取所需片段。需要服务端声明 `note.progressive_read.v1`；服务未升级时明确报错，不自动改成全文读取。现有 `get_note`、`get_note_original`、`get_note_transcript` 保持兼容。
-
-例如用户问“准备和领导谈晋升，帮我找之前绩效沟通中的反馈”：先用 `list_notes` 按来源/时间定位，或用 `search_account_content` 找候选，拿到真实字符串 ID 后：
-
-```json
-{"name":"get_note_outline","arguments":{"id":"<返回的笔记ID>"}}
-{"name":"read_note_section","arguments":{"id":"<返回的笔记ID>","keyword":"绩效|晋升|反馈"}}
-{"name":"read_note_section","arguments":{"id":"<返回的笔记ID>","offset":8000,"version":"<上次返回的版本>"}}
-```
-
-最后一条的 offset 仅作格式示例，实际必须使用目录或上一段返回的位置。单位为 UTF-16；版本变化重新取目录，到末尾停止。普通读取默认8000单元，关键词查询不传 limit 搜索到末尾，传 limit 仅搜索该范围。AI 总结不是录音原话，节选不是全文；批量的 `deferred_budget/pending_ids/partial` 仍需按条检查。
-
-工具发现使用更明确的名称，历史调用名仍接受且权限/参数不变：
-
-| 新名称 | 兼容旧名称 |
-| --- | --- |
-| search_account_content | recall |
-| search_knowledge_base | recall_knowledge |
-| batch_get_notes | get_notes |
-| list_knowledge_bases | list_topics |
-| list_knowledge_base_notes | list_topic_notes |
-| list_knowledge_base_directories | list_topic_directories |
-| list_knowledge_base_bloggers | list_topic_bloggers |
-| list_knowledge_base_blogger_contents | list_topic_blogger_contents |
-| list_knowledge_base_lives | list_topic_lives |
-| list_subscribed_knowledge_bases | list_subscribe_topics |
-
-`get_note_original` 支持七类录音来源。`get_note_chapters` 补充 `end_ms`，只从下一章起点推导并标记 `end_source=next_chapter_start`，最后一章未知为 null；保留已有结束时间，不猜测录音时长单位。原始详情结构不裁剪。
-
-本版同时更新 SDK、HTTP 与参数校验依赖到已修复版本；Zod 4 的 record 校验使用显式字符串键，原接口的字段、错误原因和参数语义保持。2026-11-17 本地生产依赖审计为 0 项已知漏洞，另覆盖旧 MCP 协议握手和历史工具名调用。
