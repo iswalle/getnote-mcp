@@ -168,7 +168,7 @@ const TOOLS: Tool[] = [
   {
     name: "list_notes",
     description:
-      "按来源、引用资源或知识库查找笔记。列表只返回定位信息；少量个人笔记正文按需用get_notes，知识库共享笔记保持get_note原权限路径。新查询核对meta.capabilities、applied_filters并按pagination.next_cursor翻页；partial/warnings未解决时末页也不代表来源完整。书库无匹配可按note_type=ref列定位信息，在真实reference中核对书籍作者/书名/book_id；保留时间、平台和知识库范围，平台未知不自加dedao，一次发现最多5页，未遍历完说明未查完。book_info.author与reference.author冲突须分别标注，候选不直接认定作者身份。total_count=null表示未知。",
+      "按来源、引用资源或知识库查找笔记。列表只返回定位信息；少量个人笔记正文按需用get_notes，知识库共享笔记保持get_note原权限路径。新查询核对meta.capabilities、applied_filters并按pagination.next_cursor翻页；partial/warnings未解决时末页也不代表来源完整。书库无匹配可按note_type=ref列定位信息，在真实reference中核对书籍作者/书名/book_id；保留时间、平台和知识库范围，平台未知不自加dedao，一次发现最多5页，未遍历完说明未查完。book_info.author与reference.author冲突须分别标注，候选不直接认定作者身份。total_count=null表示未知。generation_status非completed时正文可能为空或不完整，不当最终内容，稍后再读详情；缺失表示旧服务端未提供。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -183,7 +183,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "get_note",
-    description: "获取指定笔记的详细内容，包括正文、标签、附件、音频转录、网页链接等。\n\n**字段语义说明（AI Agent 重要参考）**：\n`content` 通常是 AI 总结，不一定是原文。不同类型笔记的原文字段如下：\n- 引用笔记（ref）：原文 = `note.ref_content`，`note.content` 是个人评论\n- 普通文字笔记（plain_text）：原文 = `note.content`\n- 链接/网页笔记（link）：原文 = `note.web_page.content`，AI 总结 = `note.content`\n- 录音笔记（audio/local_audio/meeting/recorder_audio/recorder_flash_audio/class_audio/internal_record）：转写原文 = `note.audio.original`，AI 总结 = `note.content`\n\n用户要求'读原文'时，先看 `note.note_type`，再按上述对应关系取字段。",
+    description: "获取指定笔记的详细内容，包括正文、标签、附件、音频转录、网页链接等。\n\n**字段语义说明（AI Agent 重要参考）**：\n`content` 通常是 AI 总结，不一定是原文。不同类型笔记的原文字段如下：\n- 引用笔记（ref）：原文 = `note.ref_content`，`note.content` 是个人评论\n- 普通文字笔记（plain_text）：原文 = `note.content`\n- 链接/网页笔记（link）：原文 = `note.web_page.content`，AI 总结 = `note.content`\n- 录音笔记（audio/local_audio/meeting/recorder_audio/recorder_flash_audio/class_audio/internal_record）：转写原文 = `note.audio.original`，AI 总结 = `note.content`\n\n用户要求'读原文'时，先看 `note.note_type`，再按上述对应关系取字段。`note.generation_status` 不是 completed 时正文可能为空或只有一半，不当最终内容，稍后再读详情；缺失表示旧服务端未提供。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -430,7 +430,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "list_topic_notes",
-    description: "列出知识库内可访问的笔记，支持来源、引用资源、时间筛选。列表只返回定位信息；需要正文和完整元数据时调用 get_note。按 pagination.next_page 翻页；去重 ID，重复游标/页码、无进展或中途失败不能声称全量完成。",
+    description: "列出知识库内可访问的笔记，支持来源、引用资源、时间筛选。列表只返回定位信息；需要正文和完整元数据时调用 get_note。按 pagination.next_page 翻页；去重 ID，重复游标/页码、无进展或中途失败不能声称全量完成。generation_status非completed时正文可能为空或不完整，不当最终内容，稍后再读详情；缺失表示旧服务端未提供。",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -862,6 +862,11 @@ const TOOLS: Tool[] = [
 
 type ToolInput = Record<string, unknown>;
 
+// Derived readers rebuild their output; keep the status only when the server sent it.
+function generation(note: { generation_status?: unknown }): { generation_status?: string } {
+  return typeof note.generation_status === "string" ? { generation_status: note.generation_status } : {};
+}
+
 async function handleTool(
   name: string,
   input: ToolInput,
@@ -899,38 +904,39 @@ async function handleTool(
         default: throw new Error(`Unsupported note type for original content: ${note.note_type}`);
       }
       if (!original) throw new Error("Original content is not available for this note");
-      return { id: note.id, note_type: note.note_type, title: note.title, original, original_source };
+      return { id: note.id, note_type: note.note_type, title: note.title, ...generation(note), original, original_source };
     }
     case "get_note_transcript": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
       const transcript = result.note.audio?.original;
       if (!transcript) throw new Error("Audio transcript is not available for this note");
-      return { id: result.note.id, title: result.note.title, transcript };
+      return { id: result.note.id, title: result.note.title, ...generation(result.note), transcript };
     }
     case "get_note_attachments": {
       const result = await client.getNote(snowflakeID(input.id, "id"), "original");
-      return { id: result.note.id, title: result.note.title, attachments: result.note.attachments || [] };
+      return { id: result.note.id, title: result.note.title, ...generation(result.note), attachments: result.note.attachments || [] };
     }
     case "get_note_timeline": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
       if (!result.note.timeline) throw new Error("Timeline is not available for this note");
-      return { id: result.note.id, title: result.note.title, timeline: result.note.timeline };
+      return { id: result.note.id, title: result.note.title, ...generation(result.note), timeline: result.note.timeline };
     }
     case "get_note_quick_note": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
       if (!result.note.quick_note) throw new Error("Quick note is not available for this note");
-      return { id: result.note.id, title: result.note.title, quick_note: result.note.quick_note };
+      return { id: result.note.id, title: result.note.title, ...generation(result.note), quick_note: result.note.quick_note };
     }
     case "get_note_chapters": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
       if (!result.note.chapter_timeline) throw new Error("Chapter timeline is not available for this note");
-      return { id: result.note.id, title: result.note.title, chapter_timeline: chapterEndTimes(result.note.chapter_timeline) };
+      return { id: result.note.id, title: result.note.title, ...generation(result.note), chapter_timeline: chapterEndTimes(result.note.chapter_timeline) };
     }
     case "get_note_todos": {
       const result = await client.getNote(snowflakeID(input.id, "id"));
       return {
         id: result.note.id,
         title: result.note.title,
+        ...generation(result.note),
         meeting_todos: result.note.meeting_todos || { source: "summary_markdown_rules", items: [] },
       };
     }
