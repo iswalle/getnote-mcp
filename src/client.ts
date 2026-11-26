@@ -661,8 +661,11 @@ export interface NoteReference {
   location?: { chapter_id?: string; chapter_name?: string; page?: number; start_offset?: number; end_offset?: number };
 }
 export interface BookInfo { book_id: string; title: string; author: string; platform?: string; source?: string; isbn?: string }
+/** Only `completed` content is final; older servers omit the field. */
+export type GenerationStatus = "completed" | "generating" | "attachment_processing" | "initializing" | "failed" | "unknown" | (string & {});
 export interface DiscoveryMetadata {
   display_title?: string;
+  generation_status?: GenerationStatus;
   reference?: NoteReference;
   timestamps?: { created_at?: string; edited_at?: string; record_updated_at?: string };
   preview?: { text: string; source: string; truncated: boolean };
